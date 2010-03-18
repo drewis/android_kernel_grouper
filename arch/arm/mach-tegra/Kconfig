@@ -31,6 +31,7 @@ comment "Tegra board type"
 
 config MACH_HARMONY
        bool "Harmony board"
+       select TEGRA_DEBUG_UARTD
        help
          Support for NVIDIA Harmony development platform
 
@@ -44,6 +45,12 @@ config MACH_KAEN
        select MACH_SEABOARD
        help
          Support for the Kaen version of Seaboard
+
+config MACH_OLYMPUS
+       bool "Olympus board"
+       select TEGRA_DEBUG_UARTB
+       help
+	 Support for Olympus development platform
 
 config MACH_PAZ00
        bool "Paz00 board"
