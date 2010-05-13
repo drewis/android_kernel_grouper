@@ -66,6 +66,13 @@ obj-${CONFIG_MACH_PAZ00}		+= board-paz00-pinmux.o
 obj-${CONFIG_MACH_SEABOARD}             += board-seaboard.o
 obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-pinmux.o
 
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-pinmux.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-panel.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-i2c.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-keypad.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-wifi.o
+
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice.o
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice-pinmux.o
 

@@ -64,6 +64,12 @@ config MACH_SEABOARD
 	 also be included for some of the derivative boards that
 	 have large similarities with the seaboard design.
 
+config MACH_STINGRAY
+       bool "Stingray board"
+       select TEGRA_DEBUG_UARTB
+       help
+	 Support for Stingray development platform
+
 config MACH_TRIMSLICE
        bool "TrimSlice board"
        select TEGRA_PCI
