@@ -290,5 +290,11 @@ config REGULATOR_TPS6524X
 	  serial interface currently supported on the sequencer serial
 	  port controller.
 
+config REGULATOR_CPCAP
+	tristate "CPCAP regulator driver"
+	depends on MFD_CPCAP
+	help
+	  Say Y here to support the voltage regulators on CPCAP
+
 endif
 
