@@ -72,6 +72,7 @@ obj-${CONFIG_MACH_STINGRAY}             += board-stingray-panel.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-i2c.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-keypad.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-wifi.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-sensors.o
 
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice.o
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice-pinmux.o
