@@ -69,11 +69,11 @@ obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-pinmux.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-pinmux.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-panel.o
-obj-${CONFIG_MACH_STINGRAY}             += board-stingray-i2c.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-keypad.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-wifi.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-sensors.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-wlan_nvs.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-touch.o
 
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice.o
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice-pinmux.o
