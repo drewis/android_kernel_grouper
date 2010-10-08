@@ -51,6 +51,7 @@
 #include <mach/cpcap_audio.h>
 #include <mach/system.h>
 #include <mach/tegra_fiq_debugger.h>
+#include <mach/nvmap.h>
 
 #include <linux/usb/android_composite.h>
 
@@ -59,7 +60,6 @@
 #include "clock.h"
 #include "gpio-names.h"
 #include "devices.h"
-#include "nv/include/linux/nvmem_ioctl.h"
 
 /* NVidia bootloader tags */
 #define ATAG_NVIDIA		0x41000801
@@ -551,6 +551,36 @@ static struct platform_device ram_console_device = {
 	.resource       = ram_console_resources,
 };
 
+static struct nvmap_platform_carveout stingray_carveouts[] = {
+	[0] = {
+		.name		= "iram",
+		.usage_mask	= NVMAP_HEAP_CARVEOUT_IRAM,
+		.base		= TEGRA_IRAM_BASE,
+		.size		= TEGRA_IRAM_SIZE,
+		.buddy_size	= 0,
+	},
+	[1] = {
+		.name		= "generic-0",
+		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
+		.base		= 0x1c600000, /* 1M aligned above disp1 fbmem */
+		.size		= SZ_64M - 0x600000,
+		.buddy_size	= SZ_32K,
+	},
+};
+
+static struct nvmap_platform_data stingray_nvmap_data = {
+	.carveouts	= stingray_carveouts,
+	.nr_carveouts	= ARRAY_SIZE(stingray_carveouts),
+};
+
+static struct platform_device stingray_nvmap_device = {
+	.name	= "tegra-nvmap",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &stingray_nvmap_data,
+	},
+};
+
 static struct platform_device *stingray_devices[] __initdata = {
 	&cpcap_otg,
 	&bq24617_device,
@@ -564,6 +594,8 @@ static struct platform_device *stingray_devices[] __initdata = {
 	&tegra_spi_device3,
 	&tegra_spi_device4,
 	&tegra_gart_dev,
+	&stingray_nvmap_device,
+	&tegra_grhost_device,
 	&ram_console_device,
 	&tegra_camera,
 	&tegra_i2s_device1,
@@ -863,9 +895,6 @@ static void init_das(void)
 			APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0 + 4);
 }
 
-extern int nvmap_add_carveout_heap(unsigned long, size_t, const char *,
-				   unsigned int);
-
 static void __init tegra_stingray_init(void)
 {
 	struct clk *clk;
@@ -957,9 +986,6 @@ static void __init tegra_stingray_init(void)
 	clk = tegra_get_clock_by_name("uartb");
 	tegra_serial_debug_init(TEGRA_UARTB_BASE, INT_UARTB,
 				clk, INT_QUAD_RES_31, -1);
-
-	nvmap_add_carveout_heap(TEGRA_IRAM_BASE, TEGRA_IRAM_SIZE, "iram",
-				NVMEM_HEAP_CARVEOUT_IRAM);
 
 	init_das();
 	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
