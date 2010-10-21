@@ -52,6 +52,7 @@ obj-$(CONFIG_APANIC)		+= apanic.o
 obj-$(CONFIG_SENSORS_AK8975)	+= akm8975.o
 obj-$(CONFIG_SENSORS_NCT1008)	+= nct1008.o
 obj-$(CONFIG_SENSORS_KXTF9)	+= kxtf9.o
+obj-$(CONFIG_SENSORS_CAP_PROX)	+= cap_prox.o
 obj-$(CONFIG_SENSORS_MAX9635)	+= max9635.o
 obj-$(CONFIG_SENSORS_L3G4200D)	+= l3g4200d.o
 obj-$(CONFIG_GPS_GPIO_BRCM4750)	+= gps-gpio-brcm4750.o
