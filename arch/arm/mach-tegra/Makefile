@@ -78,6 +78,7 @@ obj-${CONFIG_MACH_STINGRAY}             += board-stingray-power.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-rfkill.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-gps.o
 obj-${CONFIG_MACH_STINGRAY}             += board-stingray-usbnet.o
+obj-${CONFIG_MACH_STINGRAY}             += board-stingray-bootinfo.o
 
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice.o
 obj-${CONFIG_MACH_TRIMSLICE}            += board-trimslice-pinmux.o
