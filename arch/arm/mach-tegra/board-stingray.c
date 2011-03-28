@@ -60,6 +60,7 @@
 
 #include <linux/usb/android_composite.h>
 #include <linux/usb/f_accessory.h>
+#include <linux/usb/oob_wake.h>
 
 #include "board.h"
 #include "board-stingray.h"
@@ -203,6 +204,21 @@ static struct platform_device cpcap_audio_device = {
 	.id     = -1,
 	.dev    = {
 		.platform_data = &cpcap_audio_pdata,
+	},
+};
+
+/* LTE USB Out-of-Band Wakeup Device */
+static struct oob_wake_platform_data oob_wake_pdata = {
+	.gpio = TEGRA_GPIO_PW3,
+	.vendor = 0x22b8,
+	.product = 0x4267,
+};
+
+static struct platform_device oob_wake_device = {
+	.name   = "oob-wake",
+	.id     = -1,
+	.dev    = {
+		.platform_data = &oob_wake_pdata,
 	},
 };
 
@@ -646,6 +662,7 @@ static struct platform_device *stingray_devices[] __initdata = {
 	&pmu_device,
 	&tegra_aes_device,
 	&tegra_wdt_device,
+	&oob_wake_device,
 };
 
 extern struct tegra_sdhci_platform_data stingray_wifi_data; /* sdhci2 */
@@ -1170,6 +1187,8 @@ static void __init tegra_stingray_init(void)
 	gpio_request(TEGRA_GPIO_PD4, "spdif_enable");
 	gpio_direction_output(TEGRA_GPIO_PD4, 0);
 	gpio_export(TEGRA_GPIO_PD4, false);
+
+	tegra_gpio_enable(oob_wake_pdata.gpio);
 
 	/* Enable 4329 Power GPIO */
 	tegra_gpio_enable(TEGRA_GPIO_PU4);
