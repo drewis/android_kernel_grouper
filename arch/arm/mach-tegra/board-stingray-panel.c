@@ -15,6 +15,7 @@
  */
 
 #include <linux/gpio.h>
+#include <linux/clk.h>
 #include <linux/i2c.h>
 #include <linux/leds-auo-panel-backlight.h>
 #include <linux/resource.h>
@@ -25,6 +26,7 @@
 #include <linux/keyreset.h>
 #include <linux/input.h>
 #include <asm/mach-types.h>
+#include <mach/clk.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
 #include <mach/dc.h>
@@ -108,7 +110,7 @@ static struct tegra_dc_mode stingray_panel_modes_p0[] = {
 
 static struct tegra_dc_mode stingray_panel_modes[] = {
 	{
-		.pclk = 65000000,
+		.pclk = 66400000,
 		.h_ref_to_sync = 11,
 		.v_ref_to_sync = 1,
 		.h_sync_width = 26,
@@ -118,6 +120,22 @@ static struct tegra_dc_mode stingray_panel_modes[] = {
 		.h_active = 1280,
 		.v_active = 800,
 		.h_front_porch = 45,
+		.v_front_porch = 3,
+	},
+};
+
+static struct tegra_dc_mode stingray_panel_modes_auo_lte_desense_fix[] = {
+	{
+		.pclk = 65250000,
+		.h_ref_to_sync = 11,
+		.v_ref_to_sync = 1,
+		.h_sync_width = 26,
+		.v_sync_width = 6,
+		.h_back_porch = 12,
+		.v_back_porch = 3,
+		.h_active = 1280,
+		.v_active = 800,
+		.h_front_porch = 21,
 		.v_front_porch = 3,
 	},
 };
@@ -495,6 +513,8 @@ static struct regulator *stingray_csi_reg;
 int __init stingray_panel_init(void)
 {
 	struct resource *res;
+	struct clk *pll_c_clk;
+	unsigned long pll_c_rate;
 
 	if (stingray_revision() < STINGRAY_REVISION_P1) {
 		tegra_gpio_enable(STINGRAY_AUO_DISP_BL);
@@ -506,6 +526,22 @@ int __init stingray_panel_init(void)
 	} else {
 		if (stingray_revision() >= STINGRAY_REVISION_P3)
 			stingray_lp8550_backlight_data.dev_ctrl_config = 0x02;
+
+		if (stingray_hw_has_lte() && !strncmp(lcd_manfid, "AUO", 3)) {
+			pll_c_rate = 522000000;
+			stingray_disp1_out.modes = stingray_panel_modes_auo_lte_desense_fix;
+		} else {
+			pll_c_rate = 598000000;
+		}
+		pr_info("%s: setting pll_c to %lu Hz plck to %d Hz\n", __func__, pll_c_rate, stingray_disp1_out.modes[0].pclk);
+		pll_c_clk = clk_get_sys(NULL, "pll_c");
+		if (!IS_ERR(pll_c_clk)) {
+			clk_set_rate(pll_c_clk, pll_c_rate);
+			clk_put(pll_c_clk);
+		} else {
+			pr_err("%s: Failed to set pll_c freq\n", __func__);
+		}
+
 		i2c_register_board_info(0, stingray_i2c_bus1_led_info,
 			ARRAY_SIZE(stingray_i2c_bus1_led_info));
 	}
