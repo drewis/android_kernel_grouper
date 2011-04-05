@@ -18,9 +18,24 @@
 #ifndef __LINUX_WRIGLEY_CTRL_H__
 #define __LINUX_WRIGLEY_CTRL_H__
 
+enum wrigley_status {
+	WRIGLEY_STATUS_UNDEFINED = 0,
+	WRIGLEY_STATUS_OFF,
+	WRIGLEY_STATUS_PWRUP,
+	WRIGLEY_STATUS_NORMAL,
+	WRIGLEY_STATUS_FLASH,
+	WRIGLEY_STATUS_PWRDN,
+	WRIGLEY_STATUS_RESETTING,
+
+	WRIGLEY_STATUS_MAX = WRIGLEY_STATUS_RESETTING,
+};
+
 struct wrigley_ctrl_platform_data {
 	unsigned int gpio_disable;
 	unsigned int gpio_reset;
 	unsigned int gpio_force_flash;
+
+	/* optional callback to handle permanent shutdown of the radio */
+	void (*handle_radio_off)(enum wrigley_status);
 };
 #endif /* __LINUX_WRIGLEY_CTRL_H__ */
