@@ -150,7 +150,8 @@ static int qc_resume(struct usb_interface *iface)
 			return ret;
 		}
 
-		complete(&dev->worker.work);
+		if (dev->worker.thread)
+			wake_up_process(dev->worker.thread);
 	} else {
 		DBG("nothing to resume\n");
 		return 0;
@@ -243,8 +244,7 @@ static void qcnet_urbhook(struct urb *urb)
 	spin_lock_irqsave(&worker->active_lock, flags);
 	worker->active = ERR_PTR(-EAGAIN);
 	spin_unlock_irqrestore(&worker->active_lock, flags);
-	/* XXX-fix race against qcnet_stop()? */
-	complete(&worker->work);
+	wake_up_process(worker->thread);
 	usb_free_urb(urb);
 }
 
@@ -285,7 +285,7 @@ static void qcnet_txtimeout(struct net_device *netdev)
 	}
 	spin_unlock_irqrestore(&worker->urbs_lock, listflags);
 
-	complete(&worker->work);
+	wake_up_process(worker->thread);
 }
 
 static int qcnet_worker(void *arg)
@@ -305,9 +305,7 @@ static int qcnet_worker(void *arg)
 
 	DBG("traffic thread started\n");
 
-	while (!kthread_should_stop()) {
-		wait_for_completion_interruptible(&worker->work);
-
+	while (1) {
 		if (kthread_should_stop()) {
 			spin_lock_irqsave(&worker->active_lock, activeflags);
 			if (worker->active)
@@ -326,6 +324,8 @@ static int qcnet_worker(void *arg)
 			break;
 		}
 
+		set_current_state(TASK_INTERRUPTIBLE);
+
 		spin_lock_irqsave(&worker->active_lock, activeflags);
 		if (IS_ERR(worker->active) && PTR_ERR(worker->active) == -EAGAIN) {
 			worker->active = NULL;
@@ -336,6 +336,7 @@ static int qcnet_worker(void *arg)
 
 		if (worker->active) {
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
+			schedule();
 			continue;
 		}
 
@@ -343,8 +344,11 @@ static int qcnet_worker(void *arg)
 		if (list_empty(&worker->urbs)) {
 			spin_unlock_irqrestore(&worker->urbs_lock, listflags);
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
+			schedule();
 			continue;
 		}
+
+		set_current_state(TASK_RUNNING);
 
 		req = list_first_entry(&worker->urbs, struct urbreq, node);
 		list_del(&req->node);
@@ -378,7 +382,7 @@ static int qcnet_worker(void *arg)
 			worker->active = NULL;
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
 			usb_autopm_put_interface(worker->iface);
-			complete(&worker->work);
+			wake_up_process(worker->thread);
 		}
 
 		kfree(req);
@@ -448,7 +452,7 @@ static int qcnet_startxmit(struct sk_buff *skb, struct net_device *netdev)
 	list_add_tail(&req->node, &worker->urbs);
 	spin_unlock_irqrestore(&worker->urbs_lock, listflags);
 
-	complete(&worker->work);
+	wake_up_process(worker->thread);
 
 	netdev->trans_start = jiffies;
 	dev_kfree_skb_any(skb);
@@ -480,7 +484,6 @@ static int qcnet_open(struct net_device *netdev)
 	dev->worker.active = NULL;
 	spin_lock_init(&dev->worker.urbs_lock);
 	spin_lock_init(&dev->worker.active_lock);
-	init_completion(&dev->worker.work);
 
 	dev->worker.thread = kthread_run(qcnet_worker, &dev->worker, "qcnet_worker");
 	if (IS_ERR(dev->worker.thread)) {
@@ -517,7 +520,6 @@ int qcnet_stop(struct net_device *netdev)
 	}
 
 	qc_setdown(dev, DOWN_NET_IFACE_STOPPED);
-	complete(&dev->worker.work);
 	kthread_stop(dev->worker.thread);
 	DBG("thread stopped\n");
 
@@ -600,7 +602,7 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 		return -ENXIO;
 	}
 
-	dev = kmalloc(sizeof(struct qcusbnet), GFP_KERNEL);
+	dev = kzalloc(sizeof(struct qcusbnet), GFP_KERNEL);
 	if (!dev) {
 		ERR("failed to allocate device buffers\n");
 		return -ENOMEM;
@@ -639,7 +641,6 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 	kref_init(&dev->refcount);
 	INIT_LIST_HEAD(&dev->node);
 	INIT_LIST_HEAD(&dev->qmi.clients);
-	init_completion(&dev->worker.work);
 	spin_lock_init(&dev->qmi.clients_lock);
 
 	dev->down = 0;
