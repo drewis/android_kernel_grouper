@@ -65,6 +65,7 @@
 #include "clock.h"
 #include "gpio-names.h"
 #include "devices.h"
+#include "pm.h"
 
 /* NVidia bootloader tags */
 #define ATAG_NVIDIA		0x41000801
@@ -642,7 +643,7 @@ static struct platform_device *stingray_devices[] __initdata = {
 	&mdm6600_modem,
 	&tegra_spdif_device,
 	&tegra_avp_device,
-	&pmu_device,
+	&tegra_pmu_device,
 	&tegra_aes_device,
 	&tegra_wdt_device,
 };
@@ -917,7 +918,7 @@ static void stingray_reset(char mode, const char *cmd)
 	gpio_set_value(TEGRA_GPIO_PG3, 1);
 	mdelay(100);
 
-	tegra_assert_system_reset();
+	tegra_assert_system_reset(mode, cmd);
 }
 
 static void stingray_power_off(void)
@@ -940,7 +941,7 @@ static void __init stingray_power_off_init(void)
 	tegra_gpio_enable(TEGRA_GPIO_PG3);
 	gpio_request(TEGRA_GPIO_PG3, "sys_restart_b");
 	gpio_direction_output(TEGRA_GPIO_PG3, 1);
-	tegra_reset = stingray_reset;
+	arch_reset = stingray_reset;
 
 	tegra_gpio_enable(TEGRA_GPIO_PV7);
 	if (!gpio_request(TEGRA_GPIO_PV7, "wdi"))
@@ -993,7 +994,6 @@ static struct tegra_suspend_platform_data stingray_suspend = {
 	.cpu_off_timer = 1,
 	.core_timer = 0x7e7e,
 	.core_off_timer = 0xf,
-	.separate_req = true,
         .corereq_high = true,
 	.sysclkreq_high = true,
 	.suspend_mode = TEGRA_SUSPEND_LP0,
@@ -1062,7 +1062,6 @@ static void __init tegra_stingray_init(void)
 	/* force consoles to stay enabled across suspend/resume */
 	console_suspend_enabled = 0;
 
-	tegra_common_init();
 	tegra_init_suspend(&stingray_suspend);
 	stingray_init_emc();
 
@@ -1271,11 +1270,10 @@ void __init stingray_reserve(void)
 
 MACHINE_START(STINGRAY, "stingray")
 	.boot_params	= 0x00000100,
-	.phys_io	= IO_APB_PHYS,
-	.io_pg_offst	= ((IO_APB_VIRT) >> 18) & 0xfffc,
-	.init_irq	= tegra_init_irq,
-	.init_machine	= tegra_stingray_init,
 	.map_io		= stingray_map_io,
 	.reserve	= stingray_reserve,
+	.init_early	= tegra_init_early,
+	.init_irq	= tegra_init_irq,
 	.timer		= &tegra_timer,
+	.init_machine	= tegra_stingray_init,
 MACHINE_END
