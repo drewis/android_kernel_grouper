@@ -263,7 +263,7 @@ static int cpcap_otg_probe(struct platform_device *pdev)
 	clk_disable(cpcap->clk);
 	cpcap->otg.state = OTG_STATE_A_SUSPEND;
 
-	BLOCKING_INIT_NOTIFIER_HEAD(&cpcap->otg.notifier);
+	ATOMIC_INIT_NOTIFIER_HEAD(&cpcap->otg.notifier);
 	cpcap->nb.notifier_call = cpcap_otg_notify;
 	otg_register_notifier(&cpcap->otg, &cpcap->nb);
 
