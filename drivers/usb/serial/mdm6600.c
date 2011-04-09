@@ -583,7 +583,7 @@ static int mdm6600_chars_in_buffer(struct tty_struct *tty)
 	return chars;
 }
 
-static int mdm6600_tiocmget(struct tty_struct *tty, struct file *file)
+static int mdm6600_tiocmget(struct tty_struct *tty)
 {
 	struct usb_serial_port *port = tty->driver_data;
 	struct mdm6600_port *modem = usb_get_serial_data(port->serial);
@@ -620,8 +620,8 @@ static int mdm6600_dtr_control(struct usb_serial_port *port, int ctrl)
 	return rc;
 }
 
-static int mdm6600_tiocmset(struct tty_struct *tty, struct file *file,
-			unsigned int set, unsigned int clear)
+static int mdm6600_tiocmset(struct tty_struct *tty, unsigned int set,
+	unsigned int clear)
 {
 	struct usb_serial_port *port = tty->driver_data;
 	struct mdm6600_port *modem = usb_get_serial_data(port->serial);
