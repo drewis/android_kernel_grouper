@@ -273,9 +273,10 @@ static unsigned int max8649_get_mode(struct regulator_dev *rdev)
 static int max8649_set_suspend_voltage(struct regulator_dev *rdev, int uV)
 {
 	struct max8649_regulator_info *info = rdev_get_drvdata(rdev);
+	unsigned int selector;
 
 	dev_info(info->dev, "%d uV suspend voltage\n", uV);
-	return max8649_set_voltage(rdev, uV, uV);
+	return max8649_set_voltage(rdev, uV, uV, &selector);
 }
 
 static struct regulator_ops max8649_dcdc_ops = {
