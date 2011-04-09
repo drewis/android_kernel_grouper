@@ -188,25 +188,6 @@ cpcap_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 	return 0;
 }
 
-static int
-cpcap_rtc_update_irq_enable(struct device *dev, unsigned int enabled)
-{
-	struct cpcap_rtc *rtc = dev_get_drvdata(dev);
-	int err;
-
-	if (enabled)
-		err = cpcap_irq_unmask(rtc->cpcap, CPCAP_IRQ_1HZ);
-	else
-		err = cpcap_irq_mask(rtc->cpcap, CPCAP_IRQ_1HZ);
-
-	if (err < 0)
-		return err;
-
-	rtc->second_enabled = enabled;
-
-	return 0;
-}
-
 static int cpcap_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
 	struct cpcap_rtc *rtc;
@@ -376,7 +357,6 @@ static struct rtc_class_ops cpcap_rtc_ops = {
 	.read_alarm		= cpcap_rtc_read_alarm,
 	.set_alarm		= cpcap_rtc_set_alarm,
 	.alarm_irq_enable	= cpcap_rtc_alarm_irq_enable,
-	.update_irq_enable	= cpcap_rtc_update_irq_enable,
 };
 
 static void cpcap_rtc_irq(enum cpcap_irqs irq, void *data)
