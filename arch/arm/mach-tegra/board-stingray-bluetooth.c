@@ -140,7 +140,7 @@ static irqreturn_t host_wake_isr(int irq, void *dev)
 	unsigned long flags;
 
 	host_wake = gpio_get_value(BT_HOST_WAKE_GPIO);
-	set_irq_type(irq, host_wake ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
+	irq_set_irq_type(irq, host_wake ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
 
 	if (!bt_lpm.uport) {
 		bt_lpm.host_wake = host_wake;
@@ -194,7 +194,7 @@ static int bcm_bt_lpm_init(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = set_irq_wake(irq, 1);
+	ret = irq_set_irq_wake(irq, 1);
 	if (ret) {
 		tegra_gpio_disable(BT_WAKE_GPIO);
 		tegra_gpio_disable(BT_HOST_WAKE_GPIO);
