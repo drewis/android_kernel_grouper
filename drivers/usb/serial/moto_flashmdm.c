@@ -113,6 +113,7 @@ static struct usb_serial_driver moto_flashmdm_device = {
 		   .owner = THIS_MODULE,
 		   .name = "moto-flashmdm",
 		   },
+	.usb_driver = &moto_flashmdm_driver,
 	.id_table = id_table,
 	.num_ports = 1,
 	.attach = moto_flashmdm_attach,
