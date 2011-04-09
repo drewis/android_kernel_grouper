@@ -1799,7 +1799,7 @@ finish_touch_setup:
 	}
 
 	err = request_irq(ts->client->irq, qtouch_ts_irq_handler,
-			  IRQ_DISABLED | pdata->irqflags, "qtouch_ts_int", ts);
+			  pdata->irqflags, "qtouch_ts_int", ts);
 	if (err != 0) {
 		pr_err("%s: request_irq (%d) failed\n", __func__,
 		       ts->client->irq);
