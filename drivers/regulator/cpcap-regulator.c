@@ -335,7 +335,8 @@ static struct {
 };
 
 static int cpcap_regulator_set_voltage(struct regulator_dev *rdev,
-				       int min_uV, int max_uV)
+				       int min_uV, int max_uV,
+				       unsigned int *selector)
 {
 	struct cpcap_device *cpcap;
 	int regltr_id;
@@ -363,6 +364,8 @@ static int cpcap_regulator_set_voltage(struct regulator_dev *rdev,
 
 		if (i >= cpcap_regltr_data[regltr_id].val_tbl_sz)
 			i--;
+
+		*selector = i;
 
 		i <<= cpcap_regltr_data[regltr_id].volt_shft;
 	}
