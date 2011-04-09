@@ -212,7 +212,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata = {
 	.dsp_master	= false, /* Don't care */
 	.dma_on		= true,  /* use dma by default */
 	.i2s_clk_rate	= 24000000,
-	.dap_clk	= "clk_dev1",
+	.dap_clk	= "cdev1",
 	.audio_sync_clk = "audio_2x",
 	.mode		= I2S_BIT_FORMAT_I2S,
 	.fifo_fmt	= I2S_FIFO_PACKED,
@@ -229,7 +229,7 @@ static struct tegra_audio_platform_data tegra_audio2_pdata = {
 	.dsp_master_clk = 8000,  /* Bluetooth audio speed */
 	.dma_on		= true,  /* use dma by default */
 	.i2s_clk_rate	= 2000000, /* BCM4329 max bitclock is 2048000 Hz */
-	.dap_clk	= "clk_dev1",
+	.dap_clk	= "cdev1",
 	.audio_sync_clk = "audio_2x",
 	.mode		= I2S_BIT_FORMAT_DSP, /* Using COCEC in network mode */
 	.fifo_fmt	= I2S_FIFO_16_LSB,
@@ -1176,8 +1176,6 @@ static void __init tegra_stingray_init(void)
 
 	/* Enable GPIO for SD card detect */
 	tegra_gpio_enable(TEGRA_GPIO_PI5);
-	gpio_request(TEGRA_GPIO_PI5, "sdcard_detect");
-	gpio_direction_input(TEGRA_GPIO_PI5);
 
 	stingray_pinmux_init();
 
