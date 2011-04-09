@@ -56,7 +56,7 @@ static bool debug_data = false;
 #define MODEM_INTERFACE_NUM 4
 
 #define MODEM_WAKELOCK_TIME	msecs_to_jiffies(2000)
-#define MODEM_AUTOSUSPEND_DELAY	msecs_to_jiffies(1000)
+#define MODEM_AUTOSUSPEND_DELAY_MSECS	1000
 
 static const struct usb_device_id mdm6600_id_table[] = {
 	{ USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x2a70, 0xff, 0xff, 0xff) },
@@ -270,8 +270,8 @@ static int mdm6600_attach(struct usb_serial *serial)
 	/* the modem triggers wakeup requests only if remote wakeup is enabled */
 	device_init_wakeup(&serial->dev->dev, 1);
 	serial->interface->needs_remote_wakeup = 1;
-	serial->dev->autosuspend_delay = MODEM_AUTOSUSPEND_DELAY;
-	serial->dev->parent->autosuspend_delay = 0;
+	pm_runtime_set_autosuspend_delay(&serial->dev->dev, MODEM_AUTOSUSPEND_DELAY_MSECS);
+	pm_runtime_set_autosuspend_delay(&serial->dev->parent->dev, 0);
 
 	if (modem->number == MODEM_INTERFACE_NUM) {
 		INIT_WORK(&modem->wake_work, mdm6600_wake_work);
