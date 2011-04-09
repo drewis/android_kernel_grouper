@@ -19,7 +19,6 @@
 
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
-#include <linux/smp_lock.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
 #include <linux/spinlock.h>
