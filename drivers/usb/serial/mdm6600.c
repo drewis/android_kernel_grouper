@@ -126,8 +126,7 @@ static void mdm6600_wake_work(struct work_struct *work)
 
 	device_lock(&intf->dev);
 
-	if (intf->dev.power.status >= DPM_OFF ||
-			intf->dev.power.status == DPM_RESUMING) {
+	if (intf->dev.power.in_suspend) {
 		device_unlock(&intf->dev);
 		return;
 	}
