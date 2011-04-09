@@ -93,7 +93,7 @@ static struct resource stingray_wifi_resources[] = {
 /* BCM4329 returns wrong sdio_vsn(1) when we read cccr,
  * we use predefined value (sdio_vsn=2) here to initial sdio driver well
   */
-static struct embedded_sdio_data stingray_wifi_emb_data = {
+/*static struct embedded_sdio_data stingray_wifi_emb_data = {
 	.cccr	= {
 		.sdio_vsn       = 2,
 		.multi_block    = 1,
@@ -102,7 +102,7 @@ static struct embedded_sdio_data stingray_wifi_emb_data = {
 		.high_power     = 1,
 		.high_speed     = 1,
 	},
-};
+};*/
 
 static int stingray_wifi_cd = 0; /* WIFI virtual 'card detect' status */
 static void (*wifi_status_cb)(int card_present, void *dev_id);
@@ -125,7 +125,7 @@ static unsigned int stingray_wifi_status(struct device *dev)
 }
 
 struct tegra_sdhci_platform_data stingray_wifi_data = {
-	.clk_id = NULL,
+/*	.clk_id = NULL,
 	.force_hs = 0,
 	.mmc_data = {
 		.ocr_mask		= MMC_VDD_165_195,
@@ -133,7 +133,7 @@ struct tegra_sdhci_platform_data stingray_wifi_data = {
 		.status			= stingray_wifi_status,
 		.register_status_notify	= stingray_wifi_status_register,
 		.embedded_sdio		= &stingray_wifi_emb_data,
-	},
+	},*/
 	.cd_gpio = -1,
 	.wp_gpio = -1,
 	.power_gpio = -1,
@@ -241,7 +241,7 @@ static cntry_locales_custom_t stingray_wifi_translate_custom_table[] = {
 	{"AR", "XY",  3},
 };
 
-static void *stingray_wifi_get_country_code(char *ccode)
+/*static void *stingray_wifi_get_country_code(char *ccode)
 {
 	int size = ARRAY_SIZE(stingray_wifi_translate_custom_table);
 	int i;
@@ -253,7 +253,7 @@ static void *stingray_wifi_get_country_code(char *ccode)
 		if (strcmp(ccode, stingray_wifi_translate_custom_table[i].iso_abbrev) == 0)
 			return &stingray_wifi_translate_custom_table[i];
 	return NULL;
-}
+}*/
 
 static struct wifi_platform_data stingray_wifi_control = {
 	.set_power      = stingray_wifi_power,
@@ -261,7 +261,7 @@ static struct wifi_platform_data stingray_wifi_control = {
 	.set_carddetect = stingray_wifi_set_carddetect,
 	.mem_prealloc	= stingray_wifi_mem_prealloc,
 	.get_mac_addr	= stingray_wifi_get_mac_addr,
-	.get_country_code = stingray_wifi_get_country_code,
+	//.get_country_code = stingray_wifi_get_country_code,
 };
 
 static struct platform_device stingray_wifi_device = {
