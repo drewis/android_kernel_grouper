@@ -394,9 +394,8 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 		       i2c_readl(i2c_dev, I2C_CNFG),
 		       i2c_readl(i2c_dev, I2C_FIFO_STATUS),
 		       i2c_readl(i2c_dev, I2C_FIFO_CONTROL));
-		pr_err("mbrm=%d mcmp=%d merr=%d\n",
+		pr_err("mbrm=%d merr=%d\n",
 		       i2c_dev->msg_buf_remaining,
-		       i2c_dev->msg_transfer_complete,
 		       i2c_dev->msg_err);
 
 		i2c_dev->msg_err |= I2C_ERR_UNKNOWN_INTERRUPT << 1;
@@ -540,9 +539,8 @@ static int tegra_i2c_xfer_msg(struct tegra_i2c_bus *i2c_bus,
 		       i2c_readl(i2c_dev, I2C_CNFG),
 		       i2c_readl(i2c_dev, I2C_FIFO_STATUS),
 		       i2c_readl(i2c_dev, I2C_FIFO_CONTROL));
-		pr_err("mbrm=%d mcmp=%d merr=%d\n",
+		pr_err("mbrm=%d merr=%d\n",
 		       i2c_dev->msg_buf_remaining,
-		       i2c_dev->msg_transfer_complete,
 		       i2c_dev->msg_err);
 		pr_err("madr=%x mlen=%d mfl=%x stop=%d\n", msg->addr, msg->len,
 		       msg->flags, stop);
