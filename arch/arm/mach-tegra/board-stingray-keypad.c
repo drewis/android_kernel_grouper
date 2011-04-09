@@ -47,8 +47,8 @@ static struct gpio_event_matrix_info stingray_keypad_matrix_info = {
 	.input_gpios = stingray_row_gpios,
 	.noutputs = ARRAY_SIZE(stingray_col_gpios),
 	.ninputs = ARRAY_SIZE(stingray_row_gpios),
-	.settle_time.tv.nsec = 40 * NSEC_PER_USEC,
-	.poll_time.tv.nsec = 20 * NSEC_PER_MSEC,
+	.settle_time.tv64 = 40 * NSEC_PER_USEC,
+	.poll_time.tv64 = 20 * NSEC_PER_MSEC,
 	.flags = GPIOKPF_LEVEL_TRIGGERED_IRQ | GPIOKPF_REMOVE_PHANTOM_KEYS |
 		 GPIOKPF_PRINT_UNMAPPED_KEYS /*| GPIOKPF_PRINT_MAPPED_KEYS*/
 };
