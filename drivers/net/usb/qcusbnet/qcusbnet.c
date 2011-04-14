@@ -1,5 +1,5 @@
 /* qcusbnet.c - gobi network device
- * Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,12 +21,52 @@
 #include "qmi.h"
 #include "qcusbnet.h"
 
-#define DRIVER_VERSION "1.0.110"
+#include <linux/ctype.h>
+
+#define DRIVER_VERSION "1.0.110+google"
 #define DRIVER_AUTHOR "Qualcomm Innovation Center"
 #define DRIVER_DESC "QCUSBNet2k"
 
-int debug;
+static LIST_HEAD(qcusbnet_list);
+static DEFINE_MUTEX(qcusbnet_lock);
+
+int qcusbnet_debug;
 static struct class *devclass;
+
+static void free_dev(struct kref *ref)
+{
+	struct qcusbnet *dev = container_of(ref, struct qcusbnet, refcount);
+	list_del(&dev->node);
+	kfree(dev);
+}
+
+void qcusbnet_put(struct qcusbnet *dev)
+{
+	mutex_lock(&qcusbnet_lock);
+	kref_put(&dev->refcount, free_dev);
+	mutex_unlock(&qcusbnet_lock);
+}
+
+struct qcusbnet *qcusbnet_get(struct qcusbnet *key)
+{
+	/* Given a putative qcusbnet struct, return either the struct itself
+	 * (with a ref taken) if the struct is still visible, or NULL if it's
+	 * not. This prevents object-visibility races where someone is looking
+	 * up an object as the last ref gets dropped; dropping the last ref and
+	 * removing the object from the list are atomic with respect to getting
+	 * a new ref. */
+	struct qcusbnet *entry;
+	mutex_lock(&qcusbnet_lock);
+	list_for_each_entry(entry, &qcusbnet_list, node) {
+		if (entry == key) {
+			kref_get(&entry->refcount);
+			mutex_unlock(&qcusbnet_lock);
+			return entry;
+		}
+	}
+	mutex_unlock(&qcusbnet_lock);
+	return NULL;
+}
 
 int qc_suspend(struct usb_interface *iface, pm_message_t event)
 {
@@ -184,8 +224,8 @@ static void qcnet_unbind(struct usbnet *usbnet, struct usb_interface *iface)
 
 	kfree(usbnet->net->netdev_ops);
 	usbnet->net->netdev_ops = NULL;
-
-	kfree(dev);
+	/* drop the list's ref */
+	qcusbnet_put(dev);
 }
 
 static void qcnet_urbhook(struct urb *urb)
@@ -527,6 +567,10 @@ static const struct usb_device_id qc_vidpids[] = {
 	MKVIDPID(0x05c6, 0x9225),	/* Sony Gobi 2000 */
 	MKVIDPID(0x05c6, 0x9235),	/* Top Global Gobi 2000 */
 	MKVIDPID(0x05c6, 0x9275),	/* iRex Technologies Gobi 2000 */
+
+	MKVIDPID(0x05c6, 0x920d),	/* Qualcomm Gobi 3000 */
+	MKVIDPID(0x1410, 0xa021),	/* Novatel Gobi 3000 */
+
 	{
 		USB_DEVICE_AND_INTERFACE_INFO(0x22B8, 0x2A70, 0xff, 0xfb, 0xff), /* Motorola Xoom */
 		.driver_info = (unsigned long)&qc_netinfo
@@ -587,13 +631,13 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 	dev->iface = iface;
 	memset(&(dev->meid), '0', 14);
 
-	DBG("Mac Address: %pM\n", dev->usbnet->net->dev_addr);
-
 	dev->valid = false;
-	memset(&dev->qmi, 0, sizeof(struct qmidev));
+	memset(&dev->qmi, 0, sizeof(dev->qmi));
 
 	dev->qmi.devclass = devclass;
 
+	kref_init(&dev->refcount);
+	INIT_LIST_HEAD(&dev->node);
 	INIT_LIST_HEAD(&dev->qmi.clients);
 	init_completion(&dev->worker.work);
 	spin_lock_init(&dev->qmi.clients_lock);
@@ -603,8 +647,14 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 	qc_setdown(dev, DOWN_NET_IFACE_STOPPED);
 
 	status = qc_register(dev);
-	if (status)
+	if (status) {
 		qc_deregister(dev);
+	} else {
+		mutex_lock(&qcusbnet_lock);
+		/* Give our initial ref to the list */
+		list_add(&dev->node, &qcusbnet_list);
+		mutex_unlock(&qcusbnet_lock);
+	}
 
 	return status;
 }
@@ -645,5 +695,5 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("Dual BSD/GPL");
 
-module_param(debug, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(debug, "Debuging enabled or not");
+module_param(qcusbnet_debug, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(qcusbnet_debug, "Debugging enabled or not");

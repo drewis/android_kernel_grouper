@@ -25,6 +25,7 @@
 #include <linux/usb.h>
 #include <linux/version.h>
 #include <linux/cdev.h>
+#include <linux/kobject.h>
 #include <linux/kthread.h>
 
 #include <linux/usb/usbnet.h>
@@ -33,7 +34,7 @@
 
 #define DBG(fmt, arg...)						\
 do {									\
-	if (debug == 1)							\
+	if (qcusbnet_debug == 1)					\
 		printk(KERN_INFO "QCUSBNet2k::%s " fmt, __func__, ##arg); \
 } while (0)
 
@@ -81,12 +82,15 @@ enum {
 };
 
 struct qcusbnet {
+	struct list_head node;
+	struct kref refcount;
 	struct usbnet *usbnet;
 	struct usb_interface *iface;
 	int (*open)(struct net_device *);
 	int (*stop)(struct net_device *);
 	unsigned long down;
 	bool valid;
+	bool dying;
 	struct qmidev qmi;
 	char meid[14];
 	struct worker worker;
