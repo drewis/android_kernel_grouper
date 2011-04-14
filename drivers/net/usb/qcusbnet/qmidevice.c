@@ -1300,31 +1300,26 @@ int qc_register(struct qcusbnet *dev)
 	atomic_set(&dev->qmi.qmitid, 1);
 
 	result = qc_startread(dev);
-	if (result) {
-		dev->valid = false;
-		return result;
-	}
+	if (result)
+		goto fail_start;
 
 	if (!qmi_ready(dev, 30000)) {
 		ERR("Device unresponsive to QMI\n");
-		return -ETIMEDOUT;
+		result = -ETIMEDOUT;
+		goto fail_qmi;
 	}
 
 	result = setup_wds_callback(dev);
-	if (result) {
-		dev->valid = false;
-		return result;
-	}
+	if (result)
+		goto fail_qmi;
 
 	result = qmidms_getmeid(dev);
-	if (result) {
-		dev->valid = false;
-		return result;
-	}
+	if (result)
+		goto fail_qmi;
 
 	result = alloc_chrdev_region(&devno, 0, 1, "qcqmi");
 	if (result < 0)
-		return result;
+		goto fail_qmi;
 
 	cdev_init(&dev->qmi.cdev, &devqmi_fops);
 	dev->qmi.cdev.owner = THIS_MODULE;
@@ -1333,25 +1328,37 @@ int qc_register(struct qcusbnet *dev)
 	result = cdev_add(&dev->qmi.cdev, devno, 1);
 	if (result) {
 		ERR("error adding cdev\n");
-		return result;
+		goto fail_cdev;
 	}
 
 	name = strstr(dev->usbnet->net->name, "qmi");
 	if (!name) {
 		ERR("Bad net name: %s\n", dev->usbnet->net->name);
-		return -ENXIO;
+		result = -ENXIO;
+		goto fail_name;
 	}
 	name += strlen("qmi");
 	qmiidx = simple_strtoul(name, NULL, 10);
 	if (qmiidx < 0) {
 		ERR("Bad minor number\n");
-		return -ENXIO;
+		result = -ENXIO;
+		goto fail_name;
 	}
 
 	printk(KERN_INFO "creating qcqmi%d\n", qmiidx);
 	device_create(dev->qmi.devclass, &dev->iface->dev, devno, NULL, "qcqmi%d", qmiidx);
 
 	dev->qmi.devnum = devno;
+	return 0;
+
+fail_name:
+	cdev_del(&dev->qmi.cdev);
+fail_cdev:
+	unregister_chrdev_region(devno, 1);
+fail_qmi:
+	qc_stopread(dev);
+fail_start:
+	dev->valid = false;
 	return 0;
 }
 
@@ -1360,6 +1367,9 @@ void qc_deregister(struct qcusbnet *dev)
 	struct list_head *node;
 	struct list_head *next;
 	struct client *client;
+
+	if (!dev->valid)
+		return;
 
 	dev->dying = true;
 	list_for_each_safe(node, next, &dev->qmi.clients) {
