@@ -647,14 +647,13 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 	qc_setdown(dev, DOWN_NET_IFACE_STOPPED);
 
 	status = qc_register(dev);
-	if (status) {
-		qc_deregister(dev);
-	} else {
-		mutex_lock(&qcusbnet_lock);
-		/* Give our initial ref to the list */
-		list_add(&dev->node, &qcusbnet_list);
-		mutex_unlock(&qcusbnet_lock);
-	}
+	if (status)
+		return status;
+
+	mutex_lock(&qcusbnet_lock);
+	/* Give our initial ref to the list */
+	list_add(&dev->node, &qcusbnet_list);
+	mutex_unlock(&qcusbnet_lock);
 
 	return status;
 }
