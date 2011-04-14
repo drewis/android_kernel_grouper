@@ -476,6 +476,7 @@ static void oob_wake_cdc_unbind(struct usbnet *dev, struct usb_interface *intf)
 {
 	pr_info("%s: unregister interface for out of band wakeups\n", __func__);
 	oob_wake_unregister(intf);
+	usb_disable_autosuspend(interface_to_usbdev(intf));
 	usbnet_cdc_unbind(dev, intf);
 }
 
@@ -485,7 +486,12 @@ static int oob_wake_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 
 	pr_info("%s: register interface for out of band wakeups\n", __func__);
 	status = cdc_bind(dev, intf);
+
+	device_init_wakeup(&dev->udev->dev, 1);
+	usb_enable_autosuspend(interface_to_usbdev(intf));
 	oob_wake_register(intf);
+	dev->udev->autosuspend_delay = msecs_to_jiffies(1000);
+	dev->udev->parent->autosuspend_delay = 0;
 	return status;
 }
 
