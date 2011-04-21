@@ -462,13 +462,15 @@ static int tegra_drive_pinmux_set_pull_up(enum tegra_drive_pingroup pg,
 
 	/*
 	 * 12 is the wrong offset for pull_up drive strength.  This is
-	 * a hack for stingray to only use the correct offset for the DDC and
-	 * external SD card lines to avoid changing drive strengths across the
-	 * board before cutting a release kernel.  This should be updated to
-	 * use the correct offset on the release is cut.
+	 * a hack for stingray to only use the correct offset for the DDC,
+	 * DAP1, and external SD card lines to avoid changing drive strengths
+	 * across the board before cutting a release kernel.  This should be
+	 * updated to use the correct offset once the release is cut.
 	 */
 
-	if (pg == TEGRA_DRIVE_PINGROUP_DDC || pg == TEGRA_DRIVE_PINGROUP_SDMMC3) {
+	if (pg == TEGRA_DRIVE_PINGROUP_DDC ||
+	    pg == TEGRA_DRIVE_PINGROUP_SDMMC3 ||
+	    pg == TEGRA_DRIVE_PINGROUP_DAP1) {
 		reg &= ~(0x1f << 20);
 		reg |= pull_up << 20;
 	} else {
