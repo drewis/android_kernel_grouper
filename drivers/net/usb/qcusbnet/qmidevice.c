@@ -767,11 +767,11 @@ static void client_free(struct qcusbnet *dev, u16 cid)
 			while (client_notify(dev, cid, 0))
 				;
 
-			urb = client_delurb(dev, cid);
-			while (urb != NULL) {
+			while ((urb = client_delurb(dev, cid))) {
+				spin_unlock_irqrestore(&dev->qmi.clients_lock, flags);
 				usb_kill_urb(urb);
 				usb_free_urb(urb);
-				urb = client_delurb(dev, cid);
+				spin_lock_irqsave(&dev->qmi.clients_lock, flags);
 			}
 
 			while (client_delread(dev, cid, 0, &data, &size))
@@ -1086,6 +1086,7 @@ static long devqmi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		file->private_data = NULL;
 		client_free(handle->dev, handle->cid);
+		qcusbnet_put(handle->dev);
 		kfree(handle);
 		return 0;
 		break;
