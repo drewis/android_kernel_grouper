@@ -248,13 +248,31 @@ static void qcnet_urbhook(struct urb *urb)
 	usb_free_urb(urb);
 }
 
+static void qcnet_killactive(struct worker *worker)
+{
+	struct urb *active;
+	unsigned long flags;
+
+	spin_lock_irqsave(&worker->active_lock, flags);
+	active = worker->active;
+	if (IS_ERR_OR_NULL(active)) {
+		spin_unlock_irqrestore(&worker->active_lock, flags);
+		return;
+	}
+	usb_get_urb(active);
+	spin_unlock_irqrestore(&worker->active_lock, flags);
+
+	usb_kill_urb(active);
+	usb_put_urb(active);
+}
+
 static void qcnet_txtimeout(struct net_device *netdev)
 {
 	struct list_head *node, *tmp;
 	struct qcusbnet *dev;
 	struct worker *worker;
 	struct urbreq *req;
-	unsigned long activeflags, listflags;
+	unsigned long flags;
 	struct usbnet *usbnet = netdev_priv(netdev);
 
 	if (!usbnet || !usbnet->net) {
@@ -271,19 +289,16 @@ static void qcnet_txtimeout(struct net_device *netdev)
 
 	DBG("\n");
 
-	spin_lock_irqsave(&worker->active_lock, activeflags);
-	if (worker->active)
-		usb_kill_urb(worker->active);
-	spin_unlock_irqrestore(&worker->active_lock, activeflags);
+	qcnet_killactive(worker);
 
-	spin_lock_irqsave(&worker->urbs_lock, listflags);
+	spin_lock_irqsave(&worker->urbs_lock, flags);
 	list_for_each_safe(node, tmp, &worker->urbs) {
 		req = list_entry(node, struct urbreq, node);
 		usb_free_urb(req->urb);
 		list_del(&req->node);
 		kfree(req);
 	}
-	spin_unlock_irqrestore(&worker->urbs_lock, listflags);
+	spin_unlock_irqrestore(&worker->urbs_lock, flags);
 
 	wake_up_process(worker->thread);
 }
@@ -307,10 +322,7 @@ static int qcnet_worker(void *arg)
 
 	while (1) {
 		if (kthread_should_stop()) {
-			spin_lock_irqsave(&worker->active_lock, activeflags);
-			if (worker->active)
-				usb_kill_urb(worker->active);
-			spin_unlock_irqrestore(&worker->active_lock, activeflags);
+			qcnet_killactive(worker);
 
 			spin_lock_irqsave(&worker->urbs_lock, listflags);
 			list_for_each_safe(node, tmp, &worker->urbs) {
