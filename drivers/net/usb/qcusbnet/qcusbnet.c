@@ -459,6 +459,7 @@ static int qcnet_startxmit(struct sk_buff *skb, struct net_device *netdev)
 
 	usb_fill_bulk_urb(req->urb, dev->usbnet->udev, dev->usbnet->out,
 			  data, skb->len, qcnet_urbhook, worker);
+	req->urb->transfer_flags |= URB_FREE_BUFFER;
 
 	spin_lock_irqsave(&worker->urbs_lock, listflags);
 	list_add_tail(&req->node, &worker->urbs);
