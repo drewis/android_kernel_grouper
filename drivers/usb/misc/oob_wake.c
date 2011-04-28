@@ -16,7 +16,6 @@
  * 02111-1307  USA
  */
 #include <linux/device.h>
-#include <linux/gpio.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -32,86 +31,74 @@
 
 #define GPIO_MAX_NAME 30
 
-/* list of registered interfaces (intf_entry) */
-static LIST_HEAD(intf_list);
-static DEFINE_MUTEX(intf_list_lock);
-
-struct intf_entry {
-	struct usb_interface *data;
-	struct list_head node;
-};
+/* list of oob_wake_info devices */
+static LIST_HEAD(dev_list);
+static DEFINE_MUTEX(dev_list_lock);
 
 struct oob_wake_info {
-	unsigned int gpio;
+	unsigned int irq;
 	char name[GPIO_MAX_NAME];
 	__le16 vendor;
 	__le16 product;
 #ifdef CONFIG_HAS_WAKELOCK
 	struct wake_lock wake_lock;
 #endif /* CONFIG_HAS_WAKELOCK */
+	struct list_head node;
+	struct usb_interface *intf; /* limit one interface per device */
 };
 
-/* adds a single usb interface to the list to be woken up by the
+/* adds a single usb interface to the device to be woken up by the
  * out of band interrupt.  Only "unique wake events" are added.
  * Meaning interfaces that coming from the same device and bus
  * will be considered equivalent and only the first will be added.
  */
 int oob_wake_register(struct usb_interface *intf)
 {
-	bool unique_wake_event = 1;
 	struct list_head *ptr;
-	struct usb_device *udev;
-	struct usb_device *new_udev;
-	struct intf_entry *entry;
-	struct intf_entry *new_entry = kzalloc(sizeof(struct intf_entry),
-		GFP_KERNEL);
+	struct oob_wake_info *info;
+	struct usb_device *udev = interface_to_usbdev(intf);
 
-	if (!new_entry) {
-		return -ENOMEM;
-	}
-	new_entry->data = intf;
-	new_udev = interface_to_usbdev(intf);
-
-	mutex_lock(&intf_list_lock);
-	list_for_each(ptr, &intf_list) {
-		entry = list_entry(ptr, struct intf_entry, node);
-		udev = interface_to_usbdev(entry->data);
-		if ((udev->devnum == new_udev->devnum) &&
-		    (udev->bus->busnum == new_udev->bus->busnum)) {
-			unique_wake_event = 0;
+	mutex_lock(&dev_list_lock);
+	list_for_each(ptr, &dev_list) {
+		info = list_entry(ptr, struct oob_wake_info, node);
+		if ((udev->descriptor.idVendor == info->vendor) &&
+			(udev->descriptor.idProduct == info->product)) {
+			if (!info->intf) {
+				info->intf = intf;
+				enable_irq(info->irq);
+				enable_irq_wake(info->irq);
+			}
 			break;
 		}
 	}
-
-	if (unique_wake_event)
-		list_add(&new_entry->node, &intf_list);
-	mutex_unlock(&intf_list_lock);
-
-	if (!unique_wake_event)
-		kfree(new_entry);
+	mutex_unlock(&dev_list_lock);
 
 	return 0;
 }
 EXPORT_SYMBOL(oob_wake_register);
 
-/* removes the given interface from the list to be woken up by
-   the out of band interrupt */
+/* removes the given interface from the device to be woken up by
+ * the out of band interrupt */
 void oob_wake_unregister(struct usb_interface *intf)
 {
 	struct list_head *ptr;
-	struct list_head *next;
-	struct intf_entry *entry;
+	struct oob_wake_info *info;
+	struct usb_device *udev = interface_to_usbdev(intf);
 
-	mutex_lock(&intf_list_lock);
-	list_for_each_safe(ptr, next, &intf_list) {
-		entry = list_entry(ptr, struct intf_entry, node);
-		if (intf == entry->data) {
-			list_del(&entry->node);
-			kfree(entry);
+	mutex_lock(&dev_list_lock);
+	list_for_each(ptr, &dev_list) {
+		info = list_entry(ptr, struct oob_wake_info, node);
+		if ((udev->descriptor.idVendor == info->vendor) &&
+			(udev->descriptor.idProduct == info->product)) {
+			if (info->intf == intf) {
+				disable_irq_wake(info->irq);
+				disable_irq_nosync(info->irq);
+				info->intf = NULL;
+			}
 			break;
 		}
 	}
-	mutex_unlock(&intf_list_lock);
+	mutex_unlock(&dev_list_lock);
 }
 EXPORT_SYMBOL(oob_wake_unregister);
 
@@ -136,23 +123,14 @@ static void wake_interface(struct usb_interface *intf)
 /* Wake the interface for the associated device (vendor/product) */
 static irqreturn_t oob_wake_fn(int irq, void *data)
 {
-	struct list_head *ptr;
-	struct intf_entry *entry;
-	struct usb_device *udev;
 	struct oob_wake_info *info = (struct oob_wake_info *) data;
-	pr_debug("%s: irq (%d) fired\n", __func__, gpio_to_irq(info->gpio));
+	struct usb_interface *intf;
 
-	mutex_lock(&intf_list_lock);
-	list_for_each(ptr, &intf_list) {
-		entry = list_entry(ptr, struct intf_entry, node);
-		udev = interface_to_usbdev(entry->data);
-		pr_debug("%s: %04x:%04x\n", __func__, udev->descriptor.idVendor,
-				udev->descriptor.idProduct);
-		if ((udev->descriptor.idVendor == info->vendor) &&
-				(udev->descriptor.idProduct == info->product))
-			wake_interface(entry->data);
-	}
-	mutex_unlock(&intf_list_lock);
+	pr_debug("%s: irq (%d) fired\n", __func__, irq);
+
+	intf = info->intf;
+	if (intf)
+		wake_interface(intf);
 
 #ifdef CONFIG_HAS_WAKELOCK
 	pr_debug("%s: release wakelock %s\n", __func__, info->wake_lock.name);
@@ -178,16 +156,14 @@ static int __devinit oob_wake_probe(struct platform_device *pdev)
 {
 	struct oob_wake_platform_data *pdata = pdev->dev.platform_data;
 	struct oob_wake_info *info;
-	int irq;
 	int err = 0;
 
 	pr_info("%s: %s\n", __func__, dev_name(&pdev->dev));
 	info = kzalloc(sizeof(struct oob_wake_info), GFP_KERNEL);
-	if (!info) {
+	if (!info)
 		return -ENOMEM;
-	}
 
-	info->gpio = pdata->gpio;
+	info->irq = platform_get_irq(pdev, 0);
 	info->vendor = pdata->vendor;
 	info->product = pdata->product;
 
@@ -200,31 +176,19 @@ static int __devinit oob_wake_probe(struct platform_device *pdev)
 
 	snprintf(info->name, GPIO_MAX_NAME, "%s-%s",
 		dev_name(&pdev->dev), "host-wake");
-	err = gpio_request(info->gpio, info->name);
-	if (err) {
-		pr_err("%s: error requesting host wake gpio\n", __func__);
-		return err;
-	}
-	gpio_direction_input(info->gpio);
-
-	irq = gpio_to_irq(info->gpio);
-	err = request_threaded_irq(irq, oob_wake_isr, oob_wake_fn,
-		IRQ_TYPE_EDGE_FALLING, info->name, info);
+	err = request_threaded_irq(info->irq, oob_wake_isr, oob_wake_fn,
+		IRQ_TYPE_EDGE_FALLING | IRQF_ONESHOT, info->name, info);
 	if (err) {
 		pr_err("%s: error requesting host wake irq\n", __func__);
-		gpio_free(info->gpio);
 		return err;
 	}
 
-	err = enable_irq_wake(irq);
-	if (err) {
-		pr_err("%s: request host_wake irq (%d) %s failed\n",
-			__func__, irq, info->name);
-		free_irq(irq, info);
-		gpio_free(info->gpio);
-		return err;
-	}
-	gpio_export(info->gpio, false);
+	/* start out disabled */
+	disable_irq(info->irq);
+
+	mutex_lock(&dev_list_lock);
+	list_add(&info->node, &dev_list);
+	mutex_unlock(&dev_list_lock);
 
 	return 0;
 }
@@ -233,25 +197,25 @@ static void __devexit oob_wake_shutdown(struct platform_device *pdev)
 {
 	struct list_head *ptr;
 	struct list_head *next;
-	struct intf_entry *entry;
+	struct oob_wake_info *entry;
 	struct oob_wake_info *info = platform_get_drvdata(pdev);
 
 	pr_info("%s: %s\n", __func__, dev_name(&pdev->dev));
 	if (info) {
-		disable_irq_wake(gpio_to_irq(info->gpio));
-		free_irq(gpio_to_irq(info->gpio), info);
-		gpio_free(info->gpio);
+		mutex_lock(&dev_list_lock);
+		list_for_each_safe(ptr, next, &dev_list) {
+			entry = list_entry(ptr, struct oob_wake_info, node);
+			if (entry == info)
+				list_del(&entry->node);
+		}
+		if (info->intf)
+			disable_irq_wake(info->irq);
+		mutex_unlock(&dev_list_lock);
+
+		free_irq(info->irq, info);
 #ifdef CONFIG_HAS_WAKELOCK
 		wake_lock_destroy(&info->wake_lock);
 #endif /* CONFIG_HAS_WAKELOCK */
-
-		mutex_lock(&intf_list_lock);
-		list_for_each_safe(ptr, next, &intf_list) {
-			entry = list_entry(ptr, struct intf_entry, node);
-			list_del(&entry->node);
-			kfree(entry);
-		}
-		mutex_unlock(&intf_list_lock);
 		kfree(info);
 
 		platform_set_drvdata(pdev, NULL);
