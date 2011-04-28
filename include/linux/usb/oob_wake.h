@@ -20,7 +20,6 @@
 #include <linux/usb.h>
 
 struct oob_wake_platform_data {
-	unsigned int gpio;
 	__le16 vendor;
 	__le16 product;
 };
