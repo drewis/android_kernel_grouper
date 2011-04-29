@@ -379,8 +379,6 @@ static int mdm_gpio_setup_internal(struct mdm_ctrl_platform_data *pdata)
                         if (rv < 0) {
 				pr_err("%s: Cannot request IRQ (%d) from kernel!",
 				       mdmctrl, gpio_data->irq);
-			} else {
-				enable_irq_wake(gpio_data->irq);
 			}
 		}
         }
