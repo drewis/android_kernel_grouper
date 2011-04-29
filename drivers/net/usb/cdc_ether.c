@@ -484,7 +484,7 @@ static int oob_wake_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 	int status;
 
 	pr_info("%s: register interface for out of band wakeups\n", __func__);
-	status = cdc_bind(dev, intf);
+	status = usbnet_cdc_bind(dev, intf);
 	oob_wake_register(intf);
 	return status;
 }
@@ -494,7 +494,7 @@ static const struct driver_info	oob_wake_cdc_info = {
 	.flags =	FLAG_ETHER,
 	.bind =		oob_wake_cdc_bind,
 	.unbind =	oob_wake_cdc_unbind,
-	.status =	cdc_status,
+	.status =	usbnet_cdc_status,
 	.manage_power =	cdc_manage_power,
 };
 #endif /* CONFIG_USB_OOBWAKE */
