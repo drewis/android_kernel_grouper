@@ -24,49 +24,28 @@
 #include "board-stingray.h"
 #include "gpio-names.h"
 
-static unsigned int stingray_row_gpios[] = {
-	TEGRA_GPIO_PR0,
-	TEGRA_GPIO_PR1
-};
-static unsigned int stingray_col_gpios[] = {
-	TEGRA_GPIO_PQ0
-};
-
-#define KEYMAP_INDEX(col, row) ((col)*ARRAY_SIZE(stingray_row_gpios) + (row))
-
-static const unsigned short stingray_p3_keymap[ARRAY_SIZE(stingray_col_gpios) *
-					     ARRAY_SIZE(stingray_row_gpios)] = {
-	[KEYMAP_INDEX(0, 0)] = KEY_VOLUMEUP,
-	[KEYMAP_INDEX(0, 1)] = KEY_VOLUMEDOWN
+static struct gpio_event_direct_entry stingray_keypad_keys_map[] = {
+	{
+		.code	= KEY_VOLUMEUP,
+		.gpio	= TEGRA_GPIO_PR0,
+	},
+	{
+		.code	= KEY_VOLUMEDOWN,
+		.gpio	= TEGRA_GPIO_PR1,
+	},
 };
 
-static struct gpio_event_matrix_info stingray_keypad_matrix_info = {
-	.info.func = gpio_event_matrix_func,
-	.keymap = stingray_p3_keymap,
-	.output_gpios = stingray_col_gpios,
-	.input_gpios = stingray_row_gpios,
-	.noutputs = ARRAY_SIZE(stingray_col_gpios),
-	.ninputs = ARRAY_SIZE(stingray_row_gpios),
-	.settle_time.tv64 = 40 * NSEC_PER_USEC,
-	.poll_time.tv64 = 20 * NSEC_PER_MSEC,
-	.flags = GPIOKPF_LEVEL_TRIGGERED_IRQ | GPIOKPF_REMOVE_PHANTOM_KEYS |
-		 GPIOKPF_PRINT_UNMAPPED_KEYS /*| GPIOKPF_PRINT_MAPPED_KEYS*/
-};
-
-static struct gpio_event_direct_entry stingray_keypad_switch_map[] = {
-};
-
-static struct gpio_event_input_info stingray_keypad_switch_info = {
+static struct gpio_event_input_info stingray_keypad_keys_info = {
 	.info.func = gpio_event_input_func,
 	.flags = 0,
-	.type = EV_SW,
-	.keymap = stingray_keypad_switch_map,
-	.keymap_size = ARRAY_SIZE(stingray_keypad_switch_map)
+	.type = EV_KEY,
+	.keymap = stingray_keypad_keys_map,
+	.keymap_size = ARRAY_SIZE(stingray_keypad_keys_map),
+	.info.no_suspend = false,
 };
 
 static struct gpio_event_info *stingray_keypad_info[] = {
-	&stingray_keypad_matrix_info.info,
-	&stingray_keypad_switch_info.info,
+	&stingray_keypad_keys_info.info,
 };
 
 static struct gpio_event_platform_data stingray_keypad_data = {
@@ -111,6 +90,8 @@ int __init stingray_keypad_init(void)
 	tegra_gpio_enable(TEGRA_GPIO_PR0);
 	tegra_gpio_enable(TEGRA_GPIO_PR1);
 	tegra_gpio_enable(TEGRA_GPIO_PQ0);
+	gpio_request(TEGRA_GPIO_PQ0, "keypad-col");
+	gpio_direction_output(TEGRA_GPIO_PQ0, 0);
 	platform_device_register(&stingray_keyreset_device);
 	return platform_device_register(&stingray_keypad_device);
 }
