@@ -130,9 +130,6 @@ static int bq24617_probe(struct platform_device *pdev)
 		goto free_stat1;
 	}
 
-	enable_irq_wake(bq_data->stat1_irq);
-	enable_irq_wake(bq_data->stat2_irq);
-
 	bq_data->ac.name = "ac";
 	bq_data->ac.type = POWER_SUPPLY_TYPE_MAINS;
 	bq_data->ac.supplied_to = bq24617_supply_list;
