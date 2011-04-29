@@ -122,8 +122,7 @@ static void wake_interface(struct usb_interface *intf)
 
 	device_lock(&intf->dev);
 
-	if (intf->dev.power.status >= DPM_OFF ||
-			intf->dev.power.status == DPM_RESUMING) {
+	if (!intf->dev.power.in_suspend) {
 		device_unlock(&intf->dev);
 		return;
 	}
