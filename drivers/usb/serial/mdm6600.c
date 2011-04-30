@@ -524,7 +524,7 @@ static int mdm6600_write(struct tty_struct *tty, struct usb_serial_port *port,
 	spin_unlock_irqrestore(&modem->susp_lock, flags);
 
 	usb_anchor_urb(u, &modem->write.in_flight);
-	rc = usb_submit_urb(u, GFP_KERNEL);
+	rc = usb_submit_urb(u, GFP_ATOMIC);
 	if (rc < 0) {
 		pr_err("%s: submit bulk urb failed %d\n", __func__, rc);
 
