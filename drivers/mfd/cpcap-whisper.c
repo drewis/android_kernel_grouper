@@ -249,7 +249,7 @@ static int configure_hardware(struct cpcap_whisper_data *data,
 					     CPCAP_BIT_VBUSPD);
 		gpio_set_value(data->pdata->data_gpio, 1);
 		if (data->otg)
-			atomic_notifier_call_chain(&data->otg->notifier,
+			raw_notifier_call_chain((void *)&data->otg->notifier.head,
 						     USB_EVENT_VBUS, NULL);
 		break;
 
@@ -258,7 +258,7 @@ static int configure_hardware(struct cpcap_whisper_data *data,
 					     CPCAP_BIT_VBUSPD);
 		gpio_set_value(data->pdata->data_gpio, 1);
 		if (data->otg)
-			atomic_notifier_call_chain(&data->otg->notifier,
+			raw_notifier_call_chain((void *)&data->otg->notifier.head,
 						     USB_EVENT_ID, NULL);
 		break;
 
@@ -272,7 +272,7 @@ static int configure_hardware(struct cpcap_whisper_data *data,
 					     CPCAP_BIT_VBUSPD);
 		gpio_set_value(data->pdata->data_gpio, 1);
 		if (data->otg)
-			atomic_notifier_call_chain(&data->otg->notifier,
+			raw_notifier_call_chain((void *)&data->otg->notifier.head,
 						     USB_EVENT_ID, NULL);
 		break;
 
@@ -304,7 +304,7 @@ static int configure_hardware(struct cpcap_whisper_data *data,
 					     CPCAP_BIT_USBXCVREN);
 		vusb_disable(data);
 		if (data->otg)
-			atomic_notifier_call_chain(&data->otg->notifier,
+			raw_notifier_call_chain((void *)&data->otg->notifier.head,
 						     USB_EVENT_NONE, NULL);
 		break;
 	}
