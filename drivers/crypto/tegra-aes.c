@@ -331,8 +331,8 @@ static int aes_start_crypt(struct tegra_aes_dev *dd, u32 in_addr, u32 out_addr,
 
 	ret = wait_for_completion_timeout(&dd->op_complete, msecs_to_jiffies(150));
 	if (ret == 0) {
-		dev_err(dd->dev, "timed out (0x%x)\n",
-			aes_readl(dd, INTR_STATUS));
+		dev_err(dd->dev, "%s: timed out (0x%x)\n",
+			__func__, aes_readl(dd, INTR_STATUS));
 		return -ETIMEDOUT;
 	}
 
@@ -472,7 +472,7 @@ static int tegra_aes_handle_req(struct tegra_aes_dev *dd)
 
 	req = ablkcipher_request_cast(async_req);
 
-	dev_dbg(dd->dev, "%s: get new req\n", __func__);
+	dev_info(dd->dev, "%s: get new req\n", __func__);
 
 	/* take mutex to access the aes hw */
 	mutex_lock(&aes_lock);
@@ -598,7 +598,7 @@ fail:
 	if (dd->req->base.complete)
 		dd->req->base.complete(&dd->req->base, ret);
 
-	dev_dbg(dd->dev, "%s: exit\n", __func__);
+	dev_info(dd->dev, "%s: exit\n", __func__);
 	return ret;
 }
 
