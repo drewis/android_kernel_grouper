@@ -656,24 +656,8 @@ static int ulpi_phy_power_on(struct tegra_usb_phy *phy)
 	val |= ULPI_DIR_TRIMMER_LOAD;
 	writel(val, base + ULPI_TIMING_CTRL_1);
 
-	val = 0;
-	val |= ULPI_WAKEUP;
-	val |= ULPI_RD_WR;
-	writel(val, base + ULPI_VIEWPORT);
-
-
-	do {
-		if ((readl(base + ULPI_VIEWPORT) & ULPI_WAKEUP))
-			udelay(1);
-		else
-			break;
-		timeout--;
-	} while (timeout);
-	if (!timeout)
-		pr_err("%s: timeout on ULPI Wakeup\n", __func__);
-
 	/* Fix VbusInvalid due to floating VBUS */
-	ret = otg_io_write(phy->ulpi, 0xC0, 0x08);
+	ret = otg_io_write(phy->ulpi, 0x40, 0x08);
 	if (ret) {
 		pr_err("%s: ulpi write failed\n", __func__);
 		return ret;
