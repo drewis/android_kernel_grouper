@@ -207,9 +207,15 @@ static struct platform_device cpcap_audio_device = {
 	},
 };
 
+static struct resource oob_wake_resources[] = {
+	[0] = {
+		.flags = IORESOURCE_IRQ,
+		.start = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PW3),
+		.end   = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PW3),
+	},
+};
 /* LTE USB Out-of-Band Wakeup Device */
 static struct oob_wake_platform_data oob_wake_pdata = {
-	.gpio = TEGRA_GPIO_PW3,
 	.vendor = 0x22b8,
 	.product = 0x4267,
 };
@@ -220,6 +226,8 @@ static struct platform_device oob_wake_device = {
 	.dev    = {
 		.platform_data = &oob_wake_pdata,
 	},
+	.resource = oob_wake_resources,
+	.num_resources = ARRAY_SIZE(oob_wake_resources),
 };
 
 /* This is the CPCAP Stereo DAC interface. */
@@ -1186,7 +1194,13 @@ static void __init tegra_stingray_init(void)
 	gpio_direction_output(TEGRA_GPIO_PD4, 0);
 	gpio_export(TEGRA_GPIO_PD4, false);
 
-	tegra_gpio_enable(oob_wake_pdata.gpio);
+	/* support out-of-band wake for usb1 */
+	tegra_gpio_enable(TEGRA_GPIO_PW3);
+	if (gpio_request(TEGRA_GPIO_PW3, "oob-host-wake")) {
+		pr_err("Failed to request out-of-band host wake gpio\n");
+	}
+	gpio_direction_input(TEGRA_GPIO_PW3);
+	gpio_export(TEGRA_GPIO_PW3, false);
 
 	/* Enable 4329 Power GPIO */
 	tegra_gpio_enable(TEGRA_GPIO_PU4);
