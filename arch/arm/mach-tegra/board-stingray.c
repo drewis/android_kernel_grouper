@@ -57,8 +57,6 @@
 #include <mach/nvmap.h>
 #include <mach/bcm_bt_lpm.h>
 
-#include <linux/usb/android_composite.h>
-#include <linux/usb/f_accessory.h>
 #include <linux/usb/oob_wake.h>
 
 #include "board.h"
@@ -80,20 +78,9 @@
 #define ATAG_NVIDIA_PRESERVED_MEM_N	2
 #define ATAG_NVIDIA_FORCE_32		0x7fffffff
 
-#define USB_MANUFACTURER_NAME           "Motorola"
 #define USB_PRODUCT_NAME                "MZ600"
 #define USB_PRODUCT_NAME_LTE            "MZ602"
 #define USB_PRODUCT_NAME_WIFI_ONLY      "MZ604"
-#define USB_PRODUCT_ID_BLAN             0x70A3
-#define USB_PRODUCT_ID_MTP              0x70A8
-#define USB_PRODUCT_ID_MTP_ADB          0x70A9
-#define USB_PRODUCT_ID_RNDIS            0x70AE
-#define USB_PRODUCT_ID_RNDIS_ADB        0x70AF
-#define USB_PRODUCT_ID_BP		0x70B0
-#define USB_PRODUCT_ID_BP_ADB		0x70B1
-#define USB_PRODUCT_ID_RNDIS_BP		0x70B2
-#define USB_PRODUCT_ID_RNDIS_BP_ADB	0x70B3
-#define USB_VENDOR_ID                   0x22b8
 
 struct tag_tegra {
 	__u32 bootarg_key;
@@ -268,190 +255,6 @@ static struct tegra_audio_platform_data tegra_spdif_pdata = {
 	.i2s_clk_rate	= 5644800,
 	.mode		= SPDIF_BIT_MODE_MODE16BIT,
 	.fifo_fmt	= 1,
-};
-
-
-static char *usb_functions_mtp[] = { "mtp" };
-static char *usb_functions_mtp_adb[] = { "mtp", "adb" };
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-static char *usb_functions_accessory[] = { "accessory" };
-static char *usb_functions_accessory_adb[] = { "accessory", "adb" };
-#endif
-#ifdef CONFIG_USB_ANDROID_RNDIS
-static char *usb_functions_rndis[] = { "rndis" };
-static char *usb_functions_rndis_adb[] = { "rndis", "adb" };
-#endif
-static char *usb_functions_all[] = {
-#ifdef CONFIG_USB_ANDROID_RNDIS
-	"rndis",
-#endif
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-	"accessory",
-#endif
-	"mtp",
-	"adb"
-};
-
-static struct android_usb_product usb_products[] = {
-	{
-		.product_id	= USB_PRODUCT_ID_MTP,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp),
-		.functions	= usb_functions_mtp,
-	},
-	{
-		.product_id	= USB_PRODUCT_ID_MTP_ADB,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb),
-		.functions	= usb_functions_mtp_adb,
-	},
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_ACCESSORY_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_accessory),
-		.functions	= usb_functions_accessory,
-	},
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_ACCESSORY_ADB_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_accessory_adb),
-		.functions	= usb_functions_accessory_adb,
-	},
-#endif
-#ifdef CONFIG_USB_ANDROID_RNDIS
-	{
-		.product_id	= USB_PRODUCT_ID_RNDIS,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
-		.functions	= usb_functions_rndis,
-	},
-	{
-		.product_id	= USB_PRODUCT_ID_RNDIS_ADB,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
-		.functions	= usb_functions_rndis_adb,
-	},
-#endif
-};
-
-/* standard android USB platform data */
-static struct android_usb_platform_data andusb_plat = {
-	.vendor_id		= USB_VENDOR_ID,
-	.product_id		= USB_PRODUCT_ID_MTP_ADB,
-	.manufacturer_name	= USB_MANUFACTURER_NAME,
-	.product_name		= USB_PRODUCT_NAME,
-	.serial_number		= "0000",
-	.num_products = ARRAY_SIZE(usb_products),
-	.products = usb_products,
-	.num_functions = ARRAY_SIZE(usb_functions_all),
-	.functions = usb_functions_all,
-};
-
-static struct platform_device androidusb_device = {
-	.name	= "android_usb",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &andusb_plat,
-	},
-};
-
-static char *factory_usb_functions[] = {
-	"usbnet"
-};
-
-static struct android_usb_product factory_usb_products[] = {
-	{
-		.product_id	= USB_PRODUCT_ID_BLAN,
-		.num_functions	= ARRAY_SIZE(factory_usb_functions),
-		.functions	= factory_usb_functions,
-	},
-};
-
-/* android USB platform data for factory test mode*/
-static struct android_usb_platform_data andusb_plat_factory = {
-	.vendor_id		= USB_VENDOR_ID,
-	.product_id		= USB_PRODUCT_ID_BLAN,
-	.manufacturer_name	= USB_MANUFACTURER_NAME,
-	.product_name		= USB_PRODUCT_NAME,
-	.serial_number		= "000000000",
-	.num_products = ARRAY_SIZE(factory_usb_products),
-	.products = factory_usb_products,
-	.num_functions = ARRAY_SIZE(factory_usb_functions),
-	.functions = factory_usb_functions,
-};
-
-static char *bp_usb_functions_bp[] = {
-	"acm", "usbnet"};
-static char *bp_usb_functions_bp_adb[] = {
-	"acm", "usbnet", "adb"};
-static char *bp_usb_functions_rndis_bp[] = {
-	"rndis", "acm", "usbnet"};
-static char *bp_usb_functions_all[] = {
-	"rndis", "acm", "usbnet", "adb"};
-
-static struct android_usb_product bp_usb_products[] = {
-	{
-		.product_id	= USB_PRODUCT_ID_BP,
-		.num_functions	= ARRAY_SIZE(bp_usb_functions_bp),
-		.functions	= bp_usb_functions_bp,
-	},
-	{
-		.product_id	= USB_PRODUCT_ID_BP_ADB,
-		.num_functions	= ARRAY_SIZE(bp_usb_functions_bp_adb),
-		.functions	= bp_usb_functions_bp_adb,
-	},
-	{
-		.product_id	= USB_PRODUCT_ID_RNDIS_BP,
-		.num_functions	= ARRAY_SIZE(bp_usb_functions_rndis_bp),
-		.functions	= bp_usb_functions_rndis_bp,
-	},
-	{
-		.product_id	= USB_PRODUCT_ID_RNDIS_BP_ADB,
-		.num_functions	= ARRAY_SIZE(bp_usb_functions_all),
-		.functions	= bp_usb_functions_all,
-	},
-};
-
-static struct android_usb_platform_data andusb_plat_bp = {
-	.vendor_id		= USB_VENDOR_ID,
-	.product_id		= USB_PRODUCT_ID_BP_ADB,
-	.manufacturer_name	= USB_MANUFACTURER_NAME,
-	.product_name		= USB_PRODUCT_NAME,
-	.serial_number		= "0000",
-	.num_products = ARRAY_SIZE(bp_usb_products),
-	.products = bp_usb_products,
-	.num_functions = ARRAY_SIZE(bp_usb_functions_all),
-	.functions = bp_usb_functions_all,
-};
-
-static struct platform_device usbnet_device = {
-	.name = "usbnet",
-};
-
-#ifdef CONFIG_USB_ANDROID_RNDIS
-static struct usb_ether_platform_data rndis_pdata = {
-	/* ethaddr is filled by board_serialno_setup */
-	.vendorID	= USB_VENDOR_ID,
-	.vendorDescr	= USB_MANUFACTURER_NAME,
-};
-
-static struct platform_device rndis_device = {
-	.name	= "rndis",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &rndis_pdata,
-	},
-};
-#endif
-
-static struct acm_platform_data acm_pdata = {
-	/* Modify num_inst at runtime depending on boot_mode */
-	.num_inst	= 1,
-};
-
-static struct platform_device acm_device = {
-	.name	= "acm",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &acm_pdata,
-	},
 };
 
 static struct tegra_utmip_config utmi_phy_config[] = {
@@ -874,11 +677,6 @@ bool stingray_hw_has_umts(void)
 
 static void stingray_usb_init(void)
 {
-	char *src;
-	int i;
-
-	struct android_usb_platform_data *platform_data;
-
 	int factorycable = !strncmp(boot_mode, "factorycable",
 			BOOT_MODE_MAX_LEN);
 
@@ -893,47 +691,6 @@ static void stingray_usb_init(void)
 		platform_device_register(&tegra_ehci2_device);
 
 	platform_device_register(&tegra_ehci3_device);
-
-#ifdef CONFIG_USB_ANDROID_RNDIS
-	src = usb_serial_num;
-
-	/* create a fake MAC address from our serial number.
-	 * first byte is 0x02 to signify locally administered.
-	 */
-	rndis_pdata.ethaddr[0] = 0x02;
-	for (i = 0; *src; i++) {
-		/* XOR the USB serial across the remaining bytes */
-		rndis_pdata.ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
-	}
-	platform_device_register(&rndis_device);
-#endif
-
-	if (!(factorycable && mot_boot_recovery)) {
-		if (factorycable) {
-			platform_data = &andusb_plat_factory;
-			platform_device_register(&usbnet_device);
-		} else if (!strncmp(boot_mode, "bp-tools",
-				BOOT_MODE_MAX_LEN)) {
-			platform_data = &andusb_plat_bp;
-			platform_device_register(&usbnet_device);
-			/* acm: LTE Modem + QC Modem + QC Diag */
-			acm_pdata.num_inst = 3;
-			platform_device_register(&acm_device);
-		} else {
-			platform_data = &andusb_plat;
-		}
-
-		if (stingray_hw_has_lte())
-			platform_data->product_name = USB_PRODUCT_NAME_LTE;
-		else if (stingray_hw_has_cdma())
-			platform_data->product_name = USB_PRODUCT_NAME;
-		else
-			platform_data->product_name = USB_PRODUCT_NAME_WIFI_ONLY;
-
-		platform_data->serial_number = usb_serial_num;
-		androidusb_device.dev.platform_data = platform_data;
-		platform_device_register(&androidusb_device);
-	}
 }
 
 static void stingray_reset(char mode, const char *cmd)
