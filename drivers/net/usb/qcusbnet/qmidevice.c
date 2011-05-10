@@ -40,7 +40,7 @@ struct client {
 	struct list_head reads;
 	struct list_head notifies;
 	struct list_head urbs;
-	wait_queue_head_t read_wait;
+	struct qmihandle *handle;
 };
 
 struct urbsetup {
@@ -54,6 +54,7 @@ struct urbsetup {
 struct qmihandle {
 	u16 cid;
 	struct qcusbnet *dev;
+	wait_queue_head_t read_wait;
 };
 
 extern int qcusbnet_debug;
@@ -232,7 +233,8 @@ static void read_callback(struct urb *urb)
 				return;
 			}
 
-			wake_up_interruptible(&client->read_wait);
+			if (client->handle)
+				wake_up_interruptible(&client->handle->read_wait);
 
 			DBG("Creating new readListEntry for client 0x%04X, TID %x\n",
 			    cid, tid);
@@ -707,10 +709,10 @@ static int client_alloc(struct qcusbnet *dev, u8 type)
 
 	list_add_tail(&client->node, &dev->qmi.clients);
 	client->cid = cid;
+	client->handle = NULL;
 	INIT_LIST_HEAD(&client->reads);
 	INIT_LIST_HEAD(&client->notifies);
 	INIT_LIST_HEAD(&client->urbs);
-	init_waitqueue_head(&client->read_wait);
 	spin_unlock_irqrestore(&dev->qmi.clients_lock, flags);
 	return cid;
 }
@@ -1012,6 +1014,7 @@ static int devqmi_open(struct inode *inode, struct file *file)
 	handle = (struct qmihandle *)file->private_data;
 	handle->cid = (u16)-1;
 	handle->dev = ref;
+	init_waitqueue_head(&handle->read_wait);
 
 	DBG("%p %04x", handle, handle->cid);
 
@@ -1022,6 +1025,8 @@ static long devqmi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int result;
 	u32 vidpid;
+	struct client *client;
+	unsigned long flags;
 
 	struct qmihandle *handle = (struct qmihandle *)file->private_data;
 
@@ -1060,6 +1065,16 @@ static long devqmi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (result < 0)
 			return result;
 		handle->cid = result;
+
+		spin_lock_irqsave(&handle->dev->qmi.clients_lock, flags);
+		client = client_bycid(handle->dev, handle->cid);
+		if (!client) {
+			ERR("Could not find matching client ID 0x%04X\n", handle->cid);
+			spin_unlock_irqrestore(&handle->dev->qmi.clients_lock, flags);
+			return -ENXIO;
+		}
+		client->handle = handle;
+		spin_unlock_irqrestore(&handle->dev->qmi.clients_lock, flags);
 
 		return 0;
 		break;
@@ -1274,7 +1289,7 @@ static unsigned int devqmi_poll(struct file *file, poll_table *wait)
 		return -ENXIO;
 	}
 
-	poll_wait(file, &client->read_wait, wait);
+	poll_wait(file, &handle->read_wait, wait);
 
 	if (!list_empty(&client->reads))
 		mask |= POLLIN | POLLRDNORM;
@@ -1390,7 +1405,7 @@ void qc_deregister(struct qcusbnet *dev)
 static bool qmi_ready(struct qcusbnet *dev, u16 timeout)
 {
 	int result;
-	void *wbuf;
+	void *wbuf = NULL;
 	size_t wbufsize;
 	void *rbuf;
 	u16 rbufsize;
