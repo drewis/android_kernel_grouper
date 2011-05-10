@@ -227,6 +227,7 @@ typedef struct cntry_locales_custom {
 
 static cntry_locales_custom_t stingray_wifi_translate_custom_table[] = {
 /* Table should be filled out based on custom platform regulatory requirement */
+	{"",   "XY",  4}, /* universal */
 	{"US", "US", 69}, /* input ISO "US" to : US regrev 69 */
 	{"CA", "US", 69}, /* input ISO "CA" to : US regrev 69 */
 	{"EU", "EU",  5}, /* input ISO "EU" to : EU regrev 05 */
@@ -237,7 +238,10 @@ static cntry_locales_custom_t stingray_wifi_translate_custom_table[] = {
 	{"KR", "XY",  3},
 	{"AU", "XY",  3},
 	{"CN", "XY",  3}, /* input ISO "CN" to : XY regrev 03 */
+	{"HK", "XY",  3},
 	{"TW", "XY",  3},
+	{"BR", "XY",  3},
+	{"MX", "XY",  3},
 	{"AR", "XY",  3},
 };
 
@@ -252,7 +256,7 @@ static void *stingray_wifi_get_country_code(char *ccode)
 	for (i = 0; i < size; i++)
 		if (strcmp(ccode, stingray_wifi_translate_custom_table[i].iso_abbrev) == 0)
 			return &stingray_wifi_translate_custom_table[i];
-	return NULL;
+	return &stingray_wifi_translate_custom_table[0];
 }
 
 static struct wifi_platform_data stingray_wifi_control = {
