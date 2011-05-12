@@ -471,35 +471,35 @@ static const struct driver_info wwan_info = {
 };
 
 #ifdef CONFIG_USB_OOBWAKE
-/* out of band wake devices */
-static void oob_wake_cdc_unbind(struct usbnet *dev, struct usb_interface *intf)
+/* Motorola Wrigley LTE CDC Ethernet Device */
+static void wrigley_cdc_unbind(struct usbnet *dev, struct usb_interface *intf)
 {
-	pr_info("%s: unregister interface for out of band wakeups\n", __func__);
 	oob_wake_unregister(intf);
 	usb_disable_autosuspend(interface_to_usbdev(intf));
 	usbnet_cdc_unbind(dev, intf);
 }
 
-static int oob_wake_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
+#define WRIGLEY_DOWNLINK_MTU	1500
+static int wrigley_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 {
-	int status;
+	int status = usbnet_cdc_bind(dev, intf);
 
-	pr_info("%s: register interface for out of band wakeups\n", __func__);
-	status = usbnet_cdc_bind(dev, intf);
-
-	device_init_wakeup(&dev->udev->dev, 1);
-	usb_enable_autosuspend(interface_to_usbdev(intf));
-	oob_wake_register(intf);
-	dev->udev->autosuspend_delay = msecs_to_jiffies(1000);
-	dev->udev->parent->autosuspend_delay = 0;
+	if (!status) {
+		dev->rx_urb_size = WRIGLEY_DOWNLINK_MTU + dev->hard_mtu;
+		device_init_wakeup(&dev->udev->dev, 1);
+		usb_enable_autosuspend(interface_to_usbdev(intf));
+		oob_wake_register(intf);
+		dev->udev->autosuspend_delay = msecs_to_jiffies(1000);
+		dev->udev->parent->autosuspend_delay = 0;
+	}
 	return status;
 }
 
-static const struct driver_info	oob_wake_cdc_info = {
-	.description =	"CDC Wakeable Ethernet Device",
+static const struct driver_info wrigley_cdc_info = {
+	.description =	"Motorola Wrigley LTE CDC Ethernet Device",
 	.flags =	FLAG_ETHER,
-	.bind =		oob_wake_cdc_bind,
-	.unbind =	oob_wake_cdc_unbind,
+	.bind =		wrigley_cdc_bind,
+	.unbind =	wrigley_cdc_unbind,
 	.status =	usbnet_cdc_status,
 	.manage_power =	cdc_manage_power,
 };
@@ -619,10 +619,10 @@ static const struct usb_device_id	products [] = {
  */
 #ifdef CONFIG_USB_OOBWAKE
 {
-	/* Motorola Wrigley LTE Modem */
+	/* Motorola Wrigley LTE CDC Ethernet Device */
 	USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x4267, USB_CLASS_COMM,
 		USB_CDC_SUBCLASS_ETHERNET, USB_CDC_PROTO_NONE),
-	.driver_info = (unsigned long) &oob_wake_cdc_info,
+	.driver_info = (unsigned long) &wrigley_cdc_info,
 },
 #endif /* CONFIG_USB_OOBWAKE */
 {
