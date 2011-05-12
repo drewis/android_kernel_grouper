@@ -255,19 +255,18 @@ EXPORT_SYMBOL_GPL(usbnet_skb_return);
 int usbnet_change_mtu (struct net_device *net, int new_mtu)
 {
 	struct usbnet	*dev = netdev_priv(net);
-	int		ll_mtu = new_mtu + net->hard_header_len;
-	int		old_hard_mtu = dev->hard_mtu;
+	int		hard_mtu = new_mtu + net->hard_header_len;
 	int		old_rx_urb_size = dev->rx_urb_size;
 
 	if (new_mtu <= 0)
 		return -EINVAL;
 	// no second zero-length packet read wanted after mtu-sized packets
-	if ((ll_mtu % dev->maxpacket) == 0)
+	if ((hard_mtu % dev->maxpacket) == 0)
 		return -EDOM;
 	net->mtu = new_mtu;
 
-	dev->hard_mtu = net->mtu + net->hard_header_len;
-	if (dev->rx_urb_size == old_hard_mtu) {
+	dev->hard_mtu = hard_mtu;
+	if (!dev->custom_rx_urb_size) {
 		dev->rx_urb_size = dev->hard_mtu;
 		if (dev->rx_urb_size > old_rx_urb_size)
 			usbnet_unlink_rx_urbs(dev);
@@ -1416,8 +1415,14 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	if (status < 0)
 		goto out3;
 
-	if (!dev->rx_urb_size)
+	/* urb size is equal to hard_mtu value unless the size was set in bind() */
+	if (!dev->rx_urb_size) {
+		dev->custom_rx_urb_size = false;
 		dev->rx_urb_size = dev->hard_mtu;
+	} else {
+		dev->custom_rx_urb_size = true;
+	}
+
 	dev->maxpacket = usb_maxpacket (dev->udev, dev->out, 1);
 
 	if ((dev->driver_info->flags & FLAG_WLAN) != 0)

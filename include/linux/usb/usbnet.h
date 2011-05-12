@@ -47,6 +47,7 @@ struct usbnet {
 	u32			xid;
 	u32			hard_mtu;	/* count any extra framing */
 	size_t			rx_urb_size;	/* size for rx urbs */
+	bool			custom_rx_urb_size; /* set in bind() */
 	struct mii_if_info	mii;
 
 	/* various kinds of pending driver work */
