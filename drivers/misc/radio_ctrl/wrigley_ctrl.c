@@ -26,7 +26,6 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/wakelock.h>
 #include <linux/workqueue.h>
 #include <linux/radio_ctrl/radio_class.h>
 #include <linux/radio_ctrl/wrigley_ctrl.h>
@@ -34,9 +33,10 @@
 #define GPIO_MAX_NAME 30
 
 /* How long, in jiffies, does it take for the modem to restart. */
-static const unsigned int RESTART_DELAY = 2 * HZ; /* jiffies */
-static const unsigned int PWRUP_DELAY_MS = 100;
-static const unsigned int PWRDN_DELAY_MS = 1000;
+#define RESTART_DELAY        (2*HZ) /* jiffies */
+#define PWRUP_DELAY_MS       100
+#define PWRUP_FLASH_DELAY_MS 1000
+#define PWRDN_DELAY_MS       1000
 
 static const char *wrigley_status_str[] = {
 	[WRIGLEY_STATUS_UNDEFINED] = "undefined",
@@ -164,6 +164,14 @@ static ssize_t wrigley_do_powerup(struct wrigley_info *info)
 	pr_debug("%s: set disable high\n", __func__);
 	gpio_direction_output(info->disable_gpio, 1);
 	wrigley_set_status(info, WRIGLEY_STATUS_PWRUP);
+
+	if (info->boot_flash) {
+		/* The reset gpio is disconnected when the flash gpio is set.
+		 * Therefore the flash gpio must be returned to 0 after giving
+		 * the card time to see it was asserted. */
+		msleep(PWRUP_FLASH_DELAY_MS);
+		gpio_direction_output(info->flash_gpio, 0);
+	}
 
 	if (wait_for_completion_timeout(&info->pwrup_complete,
 		msecs_to_jiffies(PWRUP_DELAY_MS)) == 0) {
