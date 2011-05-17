@@ -32,6 +32,8 @@
 #include <mach/iomap.h>
 #include <mach/pinmux.h>
 
+#include "gpio-names.h"
+
 #define ULPI_VIEWPORT		0x170
 #define   ULPI_WAKEUP		(1 << 31)
 #define   ULPI_RUN		(1 << 30)
@@ -232,6 +234,12 @@ static int utmip_pad_open(struct tegra_usb_phy *phy)
 			clk_put(phy->pad_clk);
 			return -ENOMEM;
 		}
+	}
+
+	if (phy->instance == 2) {
+		tegra_gpio_enable(TEGRA_GPIO_PS3);
+		gpio_request(TEGRA_GPIO_PS3, "wake_bp_usb");
+		gpio_direction_output(TEGRA_GPIO_PS3, 1);
 	}
 	return 0;
 }
@@ -523,6 +531,11 @@ static void utmi_phy_preresume(struct tegra_usb_phy *phy)
 	unsigned long val;
 	void __iomem *base = phy->regs;
 
+	if (phy->instance == 2) {
+		gpio_set_value(TEGRA_GPIO_PS3, 0);
+		udelay(100);
+		gpio_set_value(TEGRA_GPIO_PS3, 1);
+	}
 	val = readl(base + UTMIP_TX_CFG0);
 	val |= UTMIP_HS_DISCON_DISABLE;
 	writel(val, base + UTMIP_TX_CFG0);
