@@ -282,7 +282,8 @@ static irqreturn_t wrigley_reset_isr(int irq, void *data)
 			wrigley_set_status(info, WRIGLEY_STATUS_OFF);
 			complete(&info->pwrdn_complete);
 		} else {
-			pr_debug("%s: ascync powerdown (%d)\n", __func__, irq);
+			pr_info("%s: LTE data-card powered off.\n",
+				__func__);
 			wrigley_set_status(info, WRIGLEY_STATUS_RESETTING);
 			schedule_delayed_work(&info->work, RESTART_DELAY);
 		}
