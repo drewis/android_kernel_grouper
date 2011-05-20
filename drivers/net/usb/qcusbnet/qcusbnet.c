@@ -433,6 +433,7 @@ static int qcnet_worker(void *arg)
 			    ERR("unable to autoresume interface: %d, power status: %d\n", status, iface->dev.power.status);
                             log_errors = 0;
                         }
+
 			if (status == -EPERM)
 				qc_suspend(iface, PMSG_SUSPEND);
 
@@ -725,6 +726,7 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 	dev->iface = iface;
 	memset(&(dev->meid), '0', 14);
 
+	mutex_init(&dev->mutex);
 	dev->valid = false;
 	memset(&dev->qmi, 0, sizeof(dev->qmi));
 

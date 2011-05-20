@@ -92,8 +92,11 @@ struct qcusbnet {
 	int (*open)(struct net_device *);
 	int (*stop)(struct net_device *);
 	unsigned long down;
+
 	bool valid;
 	bool dying;
+	struct mutex mutex;
+
 	struct qmidev qmi;
 	char meid[14];
 	struct worker worker;
