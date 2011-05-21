@@ -68,6 +68,20 @@ struct qcusbnet *qcusbnet_get(struct qcusbnet *key)
 	return NULL;
 }
 
+struct qcusbnet *cdev_to_qcusbnet(struct cdev *cdev)
+{
+	struct qcusbnet *entry;
+	mutex_lock(&qcusbnet_lock);
+	list_for_each_entry(entry, &qcusbnet_list, node) {
+		if (entry->qmi.cdev == cdev) {
+			mutex_unlock(&qcusbnet_lock);
+			return entry;
+		}
+	}
+	mutex_unlock(&qcusbnet_lock);
+	return NULL;
+}
+
 int qc_suspend(struct usb_interface *iface, pm_message_t event)
 {
 	struct usbnet *usbnet;

@@ -994,14 +994,17 @@ static struct urb *client_delurb(struct qcusbnet *dev, u16 cid)
 static int devqmi_open(struct inode *inode, struct file *file)
 {
 	struct qmihandle *handle;
-	struct qmidev *qmidev = container_of(inode->i_cdev, struct qmidev, cdev);
-	struct qcusbnet *dev = container_of(qmidev, struct qcusbnet, qmi);
+	struct qcusbnet *dev;
+	struct qcusbnet *ref;
+
+	dev = cdev_to_qcusbnet(inode->i_cdev);
+	if (!dev)
+		return -ENXIO;
 
 	/* We need an extra ref on the device per fd, since we stash a ref
 	 * inside the handle. If qcusbnet_get() returns NULL, that means the
 	 * device has been removed from the list - no new refs for us. */
-	struct qcusbnet *ref = qcusbnet_get(dev);
-
+	ref = qcusbnet_get(dev);
 	if (!ref)
 		return -ENXIO;
 
@@ -1337,11 +1340,11 @@ int qc_register(struct qcusbnet *dev)
 	if (result < 0)
 		goto fail_qmi;
 
-	cdev_init(&dev->qmi.cdev, &devqmi_fops);
-	dev->qmi.cdev.owner = THIS_MODULE;
-	dev->qmi.cdev.ops = &devqmi_fops;
+	dev->qmi.cdev = cdev_alloc();
+	dev->qmi.cdev->owner = THIS_MODULE;
+	dev->qmi.cdev->ops = &devqmi_fops;
 
-	result = cdev_add(&dev->qmi.cdev, devno, 1);
+	result = cdev_add(dev->qmi.cdev, devno, 1);
 	if (result) {
 		ERR("error adding cdev\n");
 		goto fail_cdev;
@@ -1368,7 +1371,7 @@ int qc_register(struct qcusbnet *dev)
 	return 0;
 
 fail_name:
-	cdev_del(&dev->qmi.cdev);
+	cdev_del(dev->qmi.cdev);
 fail_cdev:
 	unregister_chrdev_region(devno, 1);
 fail_qmi:
@@ -1398,7 +1401,7 @@ void qc_deregister(struct qcusbnet *dev)
 	dev->valid = false;
 	if (!IS_ERR(dev->qmi.devclass))
 		device_destroy(dev->qmi.devclass, dev->qmi.devnum);
-	cdev_del(&dev->qmi.cdev);
+	cdev_del(dev->qmi.cdev);
 	unregister_chrdev_region(dev->qmi.devnum, 1);
 }
 

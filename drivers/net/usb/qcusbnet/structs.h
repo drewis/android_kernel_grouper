@@ -62,7 +62,7 @@ struct worker {
 struct qmidev {
 	dev_t devnum;
 	struct class *devclass;
-	struct cdev cdev;
+	struct cdev *cdev;
 	struct urb *readurb;
 	struct urbsetup *readsetup;
 	void *readbuf;
