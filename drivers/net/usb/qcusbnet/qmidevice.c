@@ -1383,19 +1383,25 @@ fail_start:
 
 void qc_deregister(struct qcusbnet *dev)
 {
-	struct list_head *node;
-	struct list_head *next;
 	struct client *client;
+	unsigned long flags;
 
 	if (!dev->valid)
 		return;
 
 	dev->dying = true;
-	list_for_each_safe(node, next, &dev->qmi.clients) {
-		client = list_entry(node, struct client, node);
+	spin_lock_irqsave(&dev->qmi.clients_lock, flags);
+	while (!list_empty(&dev->qmi.clients)) {
+		client = list_first_entry(&dev->qmi.clients,
+					struct client, node);
+		spin_unlock_irqrestore(&dev->qmi.clients_lock, flags);
+
 		DBG("release 0x%04X\n", client->cid);
 		client_free(dev, client->cid);
+
+		spin_lock_irqsave(&dev->qmi.clients_lock, flags);
 	}
+	spin_unlock_irqrestore(&dev->qmi.clients_lock, flags);
 
 	qc_stopread(dev);
 	dev->valid = false;
