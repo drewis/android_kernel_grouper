@@ -25,6 +25,7 @@
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/radio_ctrl/radio_class.h>
@@ -36,7 +37,9 @@
 #define RESTART_DELAY        (2*HZ) /* jiffies */
 #define PWRUP_DELAY_MS       100
 #define PWRUP_FLASH_DELAY_MS 1000
-#define PWRDN_DELAY_MS       1000
+#define PWRDN_DELAY_HRD_MS   1000   /* hard power-off time */
+#define PWRDN_DELAY_GRC_MS   25000  /* graceful shutdown time */
+#define PWRUP_DELAY_OS_MS    2000   /* time until cards os is running */
 
 static const char *wrigley_status_str[] = {
 	[WRIGLEY_STATUS_UNDEFINED] = "undefined",
@@ -67,6 +70,7 @@ struct wrigley_info {
 	enum wrigley_status status;
 
 	struct radio_dev rdev;
+	struct mutex sysfs_lock;
 };
 
 #define wrigley_set_status(info, new_status) \
@@ -87,7 +91,9 @@ static ssize_t wrigley_status_show(struct radio_dev *rdev, char *buff)
 	struct wrigley_info *info =
 		container_of(rdev, struct wrigley_info, rdev);
 
-	pr_debug("%s: wrigley_status = %d\n", __func__, info->status);
+	pr_debug("%s: wrigley_status = %s (%d) reset = %d\n", __func__,
+		wrigley_status_str[info->status], info->status,
+		gpio_get_value(info->reset_gpio));
 	if (info->status > WRIGLEY_STATUS_MAX)
 		wrigley_set_status(info, WRIGLEY_STATUS_UNDEFINED);
 
@@ -99,6 +105,7 @@ static ssize_t wrigley_status_show(struct radio_dev *rdev, char *buff)
 static ssize_t wrigley_do_poweroff(struct wrigley_info *info)
 {
 	pr_info("%s: hard poweroff\n", __func__);
+	INIT_COMPLETION(info->pwrdn_complete);
 	wrigley_set_status(info, WRIGLEY_STATUS_PWRDN);
 	disable_irq(gpio_to_irq(info->reset_gpio));
 	gpio_direction_output(info->disable_gpio, 0);
@@ -111,12 +118,13 @@ static ssize_t wrigley_do_poweroff(struct wrigley_info *info)
 	gpio_set_value(info->flash_gpio, 0);
 
 	if (wait_for_completion_timeout(&info->pwrdn_complete,
-		msecs_to_jiffies(PWRDN_DELAY_MS)) == 0) {
+		msecs_to_jiffies(PWRDN_DELAY_HRD_MS)) == 0) {
 		pr_err("%s: timeout powering off wrigley\n", __func__);
 		if (gpio_get_value(info->reset_gpio) != 0)
 			return -1;
 	}
 
+	wrigley_set_status(info, WRIGLEY_STATUS_OFF);
 	pr_debug("%s: wrigley is off\n", __func__);
 	return 0;
 }
@@ -125,6 +133,7 @@ static ssize_t wrigley_do_poweroff(struct wrigley_info *info)
 static ssize_t wrigley_do_shutdown(struct wrigley_info *info)
 {
 	pr_info("%s: graceful shutdown\n", __func__);
+	INIT_COMPLETION(info->pwrdn_complete);
 	if (info->status == WRIGLEY_STATUS_OFF) {
 		pr_err("%s: already off\n", __func__);
 		return -1;
@@ -135,7 +144,7 @@ static ssize_t wrigley_do_shutdown(struct wrigley_info *info)
 	gpio_direction_output(info->disable_gpio, 0);
 
 	if (wait_for_completion_timeout(&info->pwrdn_complete,
-		msecs_to_jiffies(PWRDN_DELAY_MS)) == 0) {
+		msecs_to_jiffies(PWRDN_DELAY_GRC_MS)) == 0) {
 		pr_err("%s: timeout shutting down wrigley\n", __func__);
 		return wrigley_do_poweroff(info);
 	}
@@ -180,6 +189,10 @@ static ssize_t wrigley_do_powerup(struct wrigley_info *info)
 			return -1;
 		}
 	}
+	/* The reset line shows that the hardware has turned on.
+	 * Delay here so that the device's os has a chance to start
+	 * running before returning to caller */
+	msleep(PWRUP_DELAY_OS_MS);
 
 	pr_debug("%s: started wrigley in %s mode\n",
 		__func__, info->boot_flash ? "flash" : "normal" );
@@ -197,23 +210,29 @@ static ssize_t wrigley_set_flash_mode(struct wrigley_info *info, bool enable)
 /* primary interface from sysfs driver */
 static ssize_t wrigley_command(struct radio_dev *rdev, char *cmd)
 {
+	int status;
 	struct wrigley_info *info =
 		container_of(rdev, struct wrigley_info, rdev);
 
 	pr_info("%s: user command = %s\n", __func__, cmd);
-	if (strcmp(cmd, "shutdown") == 0)
-		return wrigley_do_shutdown(info);
-	else if (strcmp(cmd, "poweroff") == 0)
-		return wrigley_do_poweroff(info);
-	else if (strcmp(cmd, "powerup") == 0)
-		return wrigley_do_powerup(info);
-	else if (strcmp(cmd, "bootmode_normal") == 0)
-		return wrigley_set_flash_mode(info, 0);
-	else if (strcmp(cmd, "bootmode_flash") == 0)
-		return wrigley_set_flash_mode(info, 1);
+	mutex_lock(&info->sysfs_lock);
+	if (strcmp(cmd, "shutdown") == 0) {
+		status = wrigley_do_shutdown(info);
+	} else if (strcmp(cmd, "poweroff") == 0) {
+		status = wrigley_do_poweroff(info);
+	} else if (strcmp(cmd, "powerup") == 0) {
+		status = wrigley_do_powerup(info);
+	} else if (strcmp(cmd, "bootmode_normal") == 0) {
+		status = wrigley_set_flash_mode(info, 0);
+	} else if (strcmp(cmd, "bootmode_flash") == 0) {
+		status = wrigley_set_flash_mode(info, 1);
+	} else {
+		pr_err("%s: command %s not supported\n", __func__, cmd);
+		status = -EINVAL;
+	}
+	mutex_unlock(&info->sysfs_lock);
 
-	pr_err("%s: command %s not supported\n", __func__, cmd);
-	return -EINVAL;
+	return status;
 }
 
 /* Delayed work procedure to set the device to OFF.  Additionally, some
@@ -284,8 +303,14 @@ static irqreturn_t wrigley_reset_isr(int irq, void *data)
 		} else {
 			pr_info("%s: LTE data-card powered off.\n",
 				__func__);
+			/* data-card will restart by default, it is simplier for
+			   user space if off means off and return IRQ_HANDLED so
+			   user-space will only see the new startup or the full
+			   powerdown */
+			gpio_direction_output(info->disable_gpio, 0);
 			wrigley_set_status(info, WRIGLEY_STATUS_RESETTING);
 			schedule_delayed_work(&info->work, RESTART_DELAY);
+			return IRQ_HANDLED;
 		}
 	}
 	return IRQ_WAKE_THREAD;
@@ -310,6 +335,8 @@ static int __devinit wrigley_probe(struct platform_device *pdev)
 	info->rdev.name = dev_name(&pdev->dev);
 	info->rdev.status = wrigley_status_show;
 	info->rdev.command = wrigley_command;
+
+	mutex_init(&info->sysfs_lock);
 
 	/* disable */
 	pr_debug("%s: setup wrigley_disable\n", __func__);
@@ -399,7 +426,7 @@ static void __devexit wrigley_shutdown(struct platform_device *pdev)
 {
 	struct wrigley_info *info = platform_get_drvdata(pdev);
 	pr_info("%s: %s\n", __func__, dev_name(&pdev->dev));
-	(void) wrigley_do_shutdown(info);
+	(void) wrigley_do_poweroff(info);
 }
 
 static int __devexit wrigley_remove(struct platform_device *pdev)
