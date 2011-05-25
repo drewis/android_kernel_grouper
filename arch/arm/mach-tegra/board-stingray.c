@@ -1102,6 +1102,16 @@ static void __init tegra_stingray_init(void)
 		pr_err("Failed to set wifi sdmmc tap delay\n");
 	}
 
+	/* Set the SDMMC3 (external sd card) tap delay to 5.  This value is determined
+	 * based on propagation delay on the PCB traces. */
+	clk = clk_get_sys("sdhci-tegra.2", NULL);
+	if (!IS_ERR(clk)) {
+		tegra_sdmmc_tap_delay(clk, 5);
+		clk_put(clk);
+	} else {
+		pr_err("Failed to set external sd card sdmmc tap delay\n");
+	}
+
 	/* Stingray has a USB switch that disconnects the usb port from the T20
 	   unless a factory cable is used, the factory jumper is set, or the
 	   usb_data_en gpio is set.
