@@ -485,7 +485,8 @@ static int wrigley_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 	int status = usbnet_cdc_bind(dev, intf);
 
 	if (!status) {
-		dev->rx_urb_size = WRIGLEY_DOWNLINK_MTU + dev->hard_mtu;
+		dev->rx_urb_size = WRIGLEY_DOWNLINK_MTU +
+						dev->net->hard_header_len;
 		device_init_wakeup(&dev->udev->dev, 1);
 		usb_enable_autosuspend(interface_to_usbdev(intf));
 		oob_wake_register(intf);
