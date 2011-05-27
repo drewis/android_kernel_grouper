@@ -127,6 +127,7 @@ static unsigned int stingray_wifi_status(struct device *dev)
 struct tegra_sdhci_platform_data stingray_wifi_data = {
 	.clk_id = NULL,
 	.force_hs = 0,
+	.rt_disable = 0,
 	.mmc_data = {
 		.ocr_mask		= MMC_VDD_165_195,
 		.built_in		= 1,
