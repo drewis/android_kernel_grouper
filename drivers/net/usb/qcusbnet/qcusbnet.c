@@ -230,6 +230,18 @@ static int qcnet_bind(struct usbnet *usbnet, struct usb_interface *iface)
 	return 0;
 }
 
+#define XOOM_DOWNLINK_MTU 1500
+static int xoom_qcnet_bind(struct usbnet *usbnet, struct usb_interface *iface)
+{
+	int status = qcnet_bind(usbnet, iface);
+
+	if (!status)
+		usbnet->rx_urb_size = XOOM_DOWNLINK_MTU +
+					usbnet->net->hard_header_len;
+
+	return status;
+}
+
 static void qcnet_unbind(struct usbnet *usbnet, struct usb_interface *iface)
 {
 	struct qcusbnet *dev = (struct qcusbnet *)usbnet->data[0];
@@ -563,6 +575,14 @@ static const struct driver_info qc_netinfo = {
 	.data          = 0,
 };
 
+static const struct driver_info xoom_qc_netinfo = {
+	.description   = "Xoom QCUSBNet Ethernet Device",
+	.flags         = FLAG_ETHER,
+	.bind          = xoom_qcnet_bind,
+	.unbind        = qcnet_unbind,
+	.data          = 0,
+};
+
 #define MKVIDPID(v, p)					\
 {							\
 	USB_DEVICE(v, p),				\
@@ -602,7 +622,7 @@ static const struct usb_device_id qc_vidpids[] = {
 
 	{
 		USB_DEVICE_AND_INTERFACE_INFO(0x22B8, 0x2A70, 0xff, 0xfb, 0xff), /* Motorola Xoom */
-		.driver_info = (unsigned long)&qc_netinfo
+		.driver_info = (unsigned long)&xoom_qc_netinfo
 	},
 	{ }
 };
