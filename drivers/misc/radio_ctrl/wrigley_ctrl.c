@@ -36,7 +36,7 @@
 /* How long, in jiffies, does it take for the modem to restart. */
 #define RESTART_DELAY        (2*HZ) /* jiffies */
 #define PWRUP_DELAY_MS       100
-#define PWRUP_FLASH_DELAY_MS 1000
+#define PWRUP_FLASH_DELAY_MS 2000
 #define PWRDN_DELAY_HRD_MS   1000   /* hard power-off time */
 #define PWRDN_DELAY_GRC_MS   25000  /* graceful shutdown time */
 #define PWRUP_DELAY_OS_MS    2000   /* time until cards os is running */
