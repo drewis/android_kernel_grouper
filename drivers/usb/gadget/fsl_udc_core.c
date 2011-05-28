@@ -323,6 +323,7 @@ static int dr_controller_setup(struct fsl_udc *udc)
 static void dr_controller_run(struct fsl_udc *udc)
 {
 	u32 temp;
+	unsigned long flags;
 #ifdef CONFIG_ARCH_TEGRA
 	unsigned long timeout;
 #define FSL_UDC_RUN_TIMEOUT 1000
@@ -342,10 +343,19 @@ static void dr_controller_run(struct fsl_udc *udc)
 	temp |= USB_MODE_CTRL_MODE_DEVICE;
 	fsl_writel(temp, &dr_regs->usbmode);
 
+	spin_lock_irqsave(&udc->lock, flags);
+
+	if (!udc->softconnect) {
+		spin_unlock_irqrestore(&udc->lock, flags);
+		return;
+	}
+
 	/* Set controller to Run */
 	temp = fsl_readl(&dr_regs->usbcmd);
 	temp |= USB_CMD_RUN_STOP;
 	fsl_writel(temp, &dr_regs->usbcmd);
+
+	spin_unlock_irqrestore(&udc->lock, flags);
 
 #ifdef CONFIG_ARCH_TEGRA
 	/* Wait for controller to start */
@@ -1231,8 +1241,11 @@ static int fsl_vbus_draw(struct usb_gadget *gadget, unsigned mA)
 static int fsl_pullup(struct usb_gadget *gadget, int is_on)
 {
 	struct fsl_udc *udc;
+	unsigned long flags;
 
 	udc = container_of(gadget, struct fsl_udc, gadget);
+
+	spin_lock_irqsave(&udc->lock, flags);
 	udc->softconnect = (is_on != 0);
 	if (can_pullup(udc))
 		fsl_writel((fsl_readl(&dr_regs->usbcmd) | USB_CMD_RUN_STOP),
@@ -1240,6 +1253,7 @@ static int fsl_pullup(struct usb_gadget *gadget, int is_on)
 	else
 		fsl_writel((fsl_readl(&dr_regs->usbcmd) & ~USB_CMD_RUN_STOP),
 				&dr_regs->usbcmd);
+	spin_unlock_irqrestore(&udc->lock, flags);
 
 	return 0;
 }
