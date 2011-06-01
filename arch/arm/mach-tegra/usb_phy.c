@@ -145,6 +145,19 @@
 #define UTMIP_BIAS_CFG1		0x83c
 #define   UTMIP_BIAS_PDTRK_COUNT(x)	(((x) & 0x1f) << 3)
 
+#define ULPI_DATA0	TEGRA_GPIO_PO1
+#define ULPI_DATA1	TEGRA_GPIO_PO2
+#define ULPI_DATA2	TEGRA_GPIO_PO3
+#define ULPI_DATA3	TEGRA_GPIO_PO4
+#define ULPI_DATA4	TEGRA_GPIO_PO5
+#define ULPI_DATA5	TEGRA_GPIO_PO6
+#define ULPI_DATA6	TEGRA_GPIO_PO7
+#define ULPI_DATA7	TEGRA_GPIO_PO0
+#define ULPI_CLK	TEGRA_GPIO_PY0
+#define ULPI_DIR	TEGRA_GPIO_PY1
+#define ULPI_NXT	TEGRA_GPIO_PY2
+#define ULPI_STP	TEGRA_GPIO_PY3
+
 static DEFINE_SPINLOCK(utmip_pad_lock);
 static int utmip_pad_count;
 
@@ -590,10 +603,51 @@ static void ulpi_phy_restore_start(struct tegra_usb_phy *phy,
 	unsigned long val;
 	void __iomem *base = phy->regs;
 
-	/*Tristate ulpi interface before USB controller resume*/
-	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAA, TEGRA_TRI_TRISTATE);
-	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAB, TEGRA_TRI_TRISTATE);
-	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UDA, TEGRA_TRI_TRISTATE);
+	tegra_gpio_enable(ULPI_NXT);
+	gpio_request(ULPI_NXT, "ulpi_nxt");
+	gpio_direction_input(ULPI_NXT);
+
+	tegra_gpio_enable(ULPI_DIR);
+	gpio_request(ULPI_DIR, "ulpi_dir");
+	gpio_direction_input(ULPI_DIR);
+
+	tegra_gpio_enable(ULPI_DATA7);
+	gpio_request(ULPI_DATA7, "ulpi_data7");
+	gpio_direction_input(ULPI_DATA7);
+
+	tegra_gpio_enable(ULPI_DATA6);
+	gpio_request(ULPI_DATA6, "ulpi_data6");
+	gpio_direction_input(ULPI_DATA6);
+
+	tegra_gpio_enable(ULPI_DATA5);
+	gpio_request(ULPI_DATA5, "ulpi_data5");
+	gpio_direction_input(ULPI_DATA5);
+
+	tegra_gpio_enable(ULPI_DATA4);
+	gpio_request(ULPI_DATA4, "ulpi_data4");
+	gpio_direction_input(ULPI_DATA4);
+
+	tegra_gpio_enable(ULPI_DATA3);
+	gpio_request(ULPI_DATA3, "ulpi_data3");
+	gpio_direction_input(ULPI_DATA3);
+
+	tegra_gpio_enable(ULPI_DATA2);
+	gpio_request(ULPI_DATA2, "ulpi_data2");
+	gpio_direction_input(ULPI_DATA2);
+
+	tegra_gpio_enable(ULPI_DATA1);
+	gpio_request(ULPI_DATA1, "ulpi_data1");
+	gpio_direction_input(ULPI_DATA1);
+
+	tegra_gpio_enable(ULPI_DATA0);
+	gpio_request(ULPI_DATA0, "ulpi_data0");
+	gpio_direction_input(ULPI_DATA0);
+
+	/* Drive ULPI_STP to 0 */
+	tegra_gpio_enable(ULPI_STP);
+	gpio_request(ULPI_STP, "ulpi_stp");
+	gpio_direction_output(ULPI_STP, 0);
+	udelay(2);
 
 	val = readl(base + ULPI_TIMING_CTRL_0);
 	val &= ~ULPI_OUTPUT_PINMUX_BYP;
@@ -609,9 +663,44 @@ static void ulpi_phy_restore_end(struct tegra_usb_phy *phy)
 	val |= ULPI_OUTPUT_PINMUX_BYP;
 	writel(val, base + ULPI_TIMING_CTRL_0);
 
-	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAA, TEGRA_TRI_NORMAL);
-	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAB, TEGRA_TRI_NORMAL);
-	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UDA, TEGRA_TRI_NORMAL);
+	tegra_gpio_disable(ULPI_NXT);
+	gpio_free(ULPI_NXT);
+
+	tegra_gpio_disable(ULPI_DIR);
+	gpio_free(ULPI_DIR);
+
+	tegra_gpio_disable(ULPI_DATA7);
+	gpio_free(ULPI_DATA7);
+
+	tegra_gpio_disable(ULPI_DATA6);
+	gpio_free(ULPI_DATA6);
+
+	tegra_gpio_disable(ULPI_DATA5);
+	gpio_free(ULPI_DATA5);
+
+	tegra_gpio_disable(ULPI_DATA4);
+	gpio_free(ULPI_DATA4);
+
+	tegra_gpio_disable(ULPI_DATA3);
+	gpio_free(ULPI_DATA3);
+
+	tegra_gpio_disable(ULPI_DATA2);
+	gpio_free(ULPI_DATA2);
+
+	tegra_gpio_disable(ULPI_DATA1);
+	gpio_free(ULPI_DATA1);
+
+	tegra_gpio_disable(ULPI_DATA0);
+	gpio_free(ULPI_DATA0);
+
+	/* Clear Drive ULPI_STP to 0 as GPIO */
+	udelay(2);
+	tegra_gpio_disable(ULPI_STP);
+	gpio_free(ULPI_STP);
+
+	udelay(10);
+	if (otg_io_write(phy->ulpi, 0x55, 0x04))
+		pr_err("%s: ulpi write failed\n", __func__);
 }
 
 static int ulpi_phy_power_on(struct tegra_usb_phy *phy)
@@ -625,69 +714,85 @@ static int ulpi_phy_power_on(struct tegra_usb_phy *phy)
 	msleep(1);
 
 	if (!phy->initialized) {
-		phy->initialized = 1;
 		gpio_direction_output(config->reset_gpio, 0);
 		msleep(5);
 		gpio_direction_output(config->reset_gpio, 1);
 	}
 
 	val = readl(base + USB_SUSP_CTRL);
-	val |= UHSIC_RESET;
-	writel(val, base + USB_SUSP_CTRL);
+	if (!(val & UHSIC_RESET)) {
+		/* cold boot or resume from LP0 */
+		val |= UHSIC_RESET;
+		writel(val, base + USB_SUSP_CTRL);
 
-	val = readl(base + ULPI_TIMING_CTRL_0);
-	val |= ULPI_OUTPUT_PINMUX_BYP | ULPI_CLKOUT_PINMUX_BYP;
-	writel(val, base + ULPI_TIMING_CTRL_0);
+		/* setup trimmer values */
+		val = 0;
+		writel(val, base + ULPI_TIMING_CTRL_1);
 
-	val = readl(base + USB_SUSP_CTRL);
-	val |= ULPI_PHY_ENABLE;
-	writel(val, base + USB_SUSP_CTRL);
+		val |= ULPI_DATA_TRIMMER_SEL(4);
+		val |= ULPI_STPDIRNXT_TRIMMER_SEL(4);
+		val |= ULPI_DIR_TRIMMER_SEL(4);
+		writel(val, base + ULPI_TIMING_CTRL_1);
+		udelay(10);
 
-	val = readl(base + USB_SUSP_CTRL);
-	val |= USB_SUSP_CLR;
-	writel(val, base + USB_SUSP_CTRL);
+		val |= ULPI_DATA_TRIMMER_LOAD;
+		val |= ULPI_STPDIRNXT_TRIMMER_LOAD;
+		val |= ULPI_DIR_TRIMMER_LOAD;
+		writel(val, base + ULPI_TIMING_CTRL_1);
 
-	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID,
+		tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAA, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAB, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(TEGRA_PINGROUP_UDA, TEGRA_TRI_NORMAL);
+
+		/* Enable bypass for ULPI pads */
+		val = readl(base + ULPI_TIMING_CTRL_0);
+		val |= ULPI_OUTPUT_PINMUX_BYP | ULPI_CLKOUT_PINMUX_BYP;
+		writel(val, base + ULPI_TIMING_CTRL_0);
+
+		/* Enable LINK mode */
+		val = readl(base + USB_SUSP_CTRL);
+		val |= ULPI_PHY_ENABLE;
+		writel(val, base + USB_SUSP_CTRL);
+
+		if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID,
 						     USB_PHY_CLK_VALID) < 0)
-		pr_err("%s: timeout waiting for phy to stabilize\n", __func__);
+			pr_err("%s: timeout waiting for phy to stabilize\n", __func__);
 
-	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_CLKEN, USB_CLKEN) < 0)
-		pr_err("%s: timeout waiting for AHB clock\n", __func__);
+		if (utmi_wait_register(base + USB_SUSP_CTRL, USB_CLKEN, USB_CLKEN) < 0)
+			pr_err("%s: timeout waiting for AHB clock\n", __func__);
+	} else {
+		val = readl(base + USB_SUSP_CTRL);
+		val |= USB_SUSP_CLR;
+		writel(val, base + USB_SUSP_CTRL);
 
-	val = readl(base + USB_SUSP_CTRL);
-	val &= ~USB_SUSP_CLR;
-	writel(val, base + USB_SUSP_CTRL);
+		if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID,
+						     USB_PHY_CLK_VALID) < 0)
+			pr_err("%s: timeout waiting for phy to stabilize\n", __func__);
 
-	val = 0;
-	writel(val, base + ULPI_TIMING_CTRL_1);
+		if (utmi_wait_register(base + USB_SUSP_CTRL, USB_CLKEN, USB_CLKEN) < 0)
+			pr_err("%s: timeout waiting for AHB clock\n", __func__);
 
-	val |= ULPI_DATA_TRIMMER_SEL(4);
-	val |= ULPI_STPDIRNXT_TRIMMER_SEL(4);
-	val |= ULPI_DIR_TRIMMER_SEL(4);
-	writel(val, base + ULPI_TIMING_CTRL_1);
-	udelay(10);
-
-	val |= ULPI_DATA_TRIMMER_LOAD;
-	val |= ULPI_STPDIRNXT_TRIMMER_LOAD;
-	val |= ULPI_DIR_TRIMMER_LOAD;
-	writel(val, base + ULPI_TIMING_CTRL_1);
-
-	/* Fix VbusInvalid due to floating VBUS */
-	ret = otg_io_write(phy->ulpi, 0x40, 0x08);
-	if (ret) {
-		pr_err("%s: ulpi write failed\n", __func__);
-		return ret;
+		val = readl(base + USB_SUSP_CTRL);
+		val &= ~USB_SUSP_CLR;
+		writel(val, base + USB_SUSP_CTRL);
 	}
 
-	ret = otg_io_write(phy->ulpi, 0x80, 0x0B);
-	if (ret) {
-		pr_err("%s: ulpi write failed\n", __func__);
-		return ret;
-	}
+	if (!phy->initialized) {
+		/* Fix VbusInvalid due to floating VBUS */
+		ret = otg_io_write(phy->ulpi, 0x40, 0x08);
+		if (ret) {
+			pr_err("%s: ulpi write failed\n", __func__);
+			return ret;
+		}
 
-	val = readl(base + USB_PORTSC1);
-	val |= USB_PORTSC1_WKOC | USB_PORTSC1_WKDS | USB_PORTSC1_WKCN;
-	writel(val, base + USB_PORTSC1);
+		ret = otg_io_write(phy->ulpi, 0x80, 0x0B);
+		if (ret) {
+			pr_err("%s: ulpi write failed\n", __func__);
+			return ret;
+		}
+
+		phy->initialized = 1;
+	}
 
 	return 0;
 }
