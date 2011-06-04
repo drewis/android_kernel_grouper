@@ -336,13 +336,15 @@ static int qcnet_worker(void *arg)
 	struct urbreq *req;
 	int status;
 	struct usb_device *usbdev;
+	struct usb_interface *iface;
 	struct worker *worker = arg;
 	if (!worker) {
 		ERR("passed null pointer\n");
 		return -EINVAL;
 	}
 
-	usbdev = interface_to_usbdev(worker->iface);
+	iface = worker->iface;
+	usbdev = interface_to_usbdev(iface);
 
 	DBG("traffic thread started\n");
 
@@ -368,7 +370,7 @@ static int qcnet_worker(void *arg)
 		if (IS_ERR(worker->active) && PTR_ERR(worker->active) == -EAGAIN) {
 			worker->active = NULL;
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
-			usb_autopm_put_interface(worker->iface);
+			usb_autopm_put_interface(iface);
 			spin_lock_irqsave(&worker->active_lock, activeflags);
 		}
 
@@ -395,11 +397,20 @@ static int qcnet_worker(void *arg)
 		worker->active = req->urb;
 		spin_unlock_irqrestore(&worker->active_lock, activeflags);
 
-		status = usb_autopm_get_interface(worker->iface);
+		device_lock(&iface->dev);
+		if (iface->dev.power.status >= DPM_OFF ||
+				iface->dev.power.status == DPM_RESUMING) {
+			usb_autopm_get_interface_no_resume(iface);
+			status = 0;
+		} else {
+			status = usb_autopm_get_interface(iface);
+		}
+		device_unlock(&iface->dev);
+
 		if (status < 0) {
 			ERR("unable to autoresume interface: %d\n", status);
 			if (status == -EPERM)
-				qc_suspend(worker->iface, PMSG_SUSPEND);
+				qc_suspend(iface, PMSG_SUSPEND);
 
 			spin_lock_irqsave(&worker->urbs_lock, listflags);
 			list_add(&req->node, &worker->urbs);
@@ -419,7 +430,7 @@ static int qcnet_worker(void *arg)
 			usb_free_urb(worker->active);
 			worker->active = NULL;
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
-			usb_autopm_put_interface(worker->iface);
+			usb_autopm_put_interface(iface);
 			wake_up_process(worker->thread);
 		}
 
