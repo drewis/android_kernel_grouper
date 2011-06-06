@@ -151,7 +151,7 @@ static int qc_resume(struct usb_interface *iface)
 
 	if (oldstate & PM_EVENT_SUSPEND) {
 		qc_cleardown(dev, DOWN_DRIVER_SUSPENDED);
-
+		netif_start_queue(usbnet->net);
 		ret = usbnet_resume(iface);
 		if (ret) {
 			ERR("usbnet_resume error %d\n", ret);
@@ -467,7 +467,9 @@ static int qcnet_startxmit(struct sk_buff *skb, struct net_device *netdev)
 
 	if (qc_isdown(dev, DOWN_DRIVER_SUSPENDED)) {
 		ERR("device is suspended\n");
-		dump_stack();
+		netif_stop_queue(usbnet->net);
+		if (qcusbnet_debug)
+			dump_stack();
 		return NETDEV_TX_BUSY;
 	}
 
