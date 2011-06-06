@@ -77,6 +77,8 @@ void tegra_usb_phy_preresume(struct tegra_usb_phy *phy);
 
 void tegra_usb_phy_postresume(struct tegra_usb_phy *phy);
 
+void tegra_usb_phy_postsuspend(struct tegra_usb_phy *phy);
+
 void tegra_ehci_phy_restore_start(struct tegra_usb_phy *phy,
 				 enum tegra_usb_phy_port_speed port_speed);
 
