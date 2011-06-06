@@ -703,6 +703,13 @@ static void ulpi_phy_restore_end(struct tegra_usb_phy *phy)
 		pr_err("%s: ulpi write failed\n", __func__);
 }
 
+static void ulpi_phy_postsuspend(struct tegra_usb_phy *phy)
+{
+	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAA, TEGRA_TRI_TRISTATE);
+	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UAB, TEGRA_TRI_TRISTATE);
+	tegra_pinmux_set_tristate(TEGRA_PINGROUP_UDA, TEGRA_TRI_TRISTATE);
+}
+
 static int ulpi_phy_power_on(struct tegra_usb_phy *phy)
 {
 	int ret;
@@ -944,6 +951,12 @@ void tegra_usb_phy_postresume(struct tegra_usb_phy *phy)
 {
 	if (!phy_is_ulpi(phy))
 		utmi_phy_postresume(phy);
+}
+
+void tegra_usb_phy_postsuspend(struct tegra_usb_phy *phy)
+{
+	if (phy_is_ulpi(phy))
+		ulpi_phy_postsuspend(phy);
 }
 
 void tegra_ehci_phy_restore_start(struct tegra_usb_phy *phy,

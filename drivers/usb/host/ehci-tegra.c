@@ -663,14 +663,18 @@ static int tegra_ehci_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct tegra_ehci_hcd *tegra = platform_get_drvdata(pdev);
 	struct usb_hcd *hcd = ehci_to_hcd(tegra->ehci);
+	int status = 0;
 
 	if (tegra->bus_suspended)
-		return 0;
+		goto out;
 
 	if (time_before(jiffies, tegra->ehci->next_statechange))
 		msleep(10);
 
-	return tegra_usb_suspend(hcd);
+	status = tegra_usb_suspend(hcd);
+out:
+	tegra_usb_phy_postsuspend(tegra->phy);
+	return status;
 }
 #endif
 
