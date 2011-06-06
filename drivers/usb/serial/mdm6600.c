@@ -60,6 +60,7 @@ static bool debug_data = false;
 
 static const struct usb_device_id mdm6600_id_table[] = {
 	{ USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x2a70, 0xff, 0xff, 0xff) },
+	{ USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x900e, 0xff, 0xff, 0xff) },
 	{ },
 };
 MODULE_DEVICE_TABLE(usb, mdm6600_id_table);
