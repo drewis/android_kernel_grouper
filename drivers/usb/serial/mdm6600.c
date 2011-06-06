@@ -877,6 +877,11 @@ static int mdm6600_resume(struct usb_interface *intf)
 
 	spin_lock_irq(&modem->susp_lock);
 
+	if (WARN_ON(!modem->susp_count)) {
+		spin_unlock_irq(&modem->susp_lock);
+		return 0;
+	}
+
 	if (!--modem->susp_count && modem->opened) {
 		dbg("%s: submit urbs", __func__);
 		spin_unlock_irq(&modem->susp_lock);
