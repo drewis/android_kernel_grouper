@@ -26,7 +26,6 @@
 static struct usb_device_id id_table[] = {
 	{USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x2db4, 0x0a, 0, 0xfc)},
 	{USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x4281, 0x0a, 0, 0xfc)},
-	{USB_DEVICE_AND_INTERFACE_INFO(0x22b8, 0x900e, 0xff, 0xff, 0xff)},
 	{USB_DEVICE(0x22b8, 0x4260)}, /* wrigley in flash mode */
 	{USB_DEVICE(0x22b8, 0x426d)}, /* wrigley in flash bl3080 */
 	{},
