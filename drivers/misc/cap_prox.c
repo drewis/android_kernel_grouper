@@ -32,11 +32,22 @@
 
 #define CAP_PROX_NAME "cap-prox"
 #define CP_STATUS_NUM_KEYS_ENABLED              0x20
+#define CP_STATUS_1_KEY_EN_KEY1_FORCE_DETECT	0x51
+#define CP_STATUS_1_KEY_EN_KEY3_FORCE_DETECT    0x91
 
 #define CP_STATUS_KEY3_IN_DETECT                0x24
+#define CP_STATUS_KEY3_IN_DETECT_KEY1_FD	0x55
+#define CP_STATUS_KEY3_EN_FORCE_DETECT		0x84
 #define CP_STATUS_KEY1_IN_DETECT                0x21
+#define CP_STATUS_KEY1_IN_DETECT_KEY3_FD	0x95
+#define CP_STATUS_KEY1_EN_FORCE_DETECT		0x41
 #define CP_STATUS_KEY1_KEY3_IN_DETECT           0x25
 #define CP_STATUS_KEY1_KEY3_EN_FORCE_DETECT     0x75
+#define CP_STATUS_KEY1_KEY3_EN_FORCE_DETECT_V4	0xC5
+
+#define CP_STATUS_KEY3_KEY1_EN_MASK	0x05
+#define CP_STATUS_KEY3_EN_MASK		0x04
+#define CP_STATUS_KEY1_EN_MASK		0x01
 
 struct cap_prox_msg {
 	uint8_t         status;
@@ -151,6 +162,7 @@ static int cap_prox_read_data(struct cap_prox_data *cp)
 {
 	struct cap_prox_msg *msg;
 	uint8_t status;
+	uint8_t force_detect, key_scan_mask;
 	int ret = -1;
 	int key1_ref_drift = 0;
 	int key3_ref_drift = 0;
@@ -214,14 +226,62 @@ static int cap_prox_read_data(struct cap_prox_data *cp)
 
 	switch (msg->status) {
 
+	case CP_STATUS_KEY1_IN_DETECT_KEY3_FD:
+		if (msg->sw_ver < 0x4)
+			break;
 	case CP_STATUS_KEY1_IN_DETECT:
 		if (key1_ref_drift < cp->pdata->key1_ref_drift_thres_l)
 			cap_prox_calibrate(cp);
 		break;
+
+	case CP_STATUS_KEY3_IN_DETECT_KEY1_FD:
+		if (msg->sw_ver < 0x4)
+			break;
 	case CP_STATUS_KEY3_IN_DETECT:
 		if (key3_ref_drift < cp->pdata->key3_ref_drift_thres_l)
 			cap_prox_calibrate(cp);
 		break;
+
+	case CP_STATUS_KEY1_KEY3_EN_FORCE_DETECT_V4:
+		if (msg->sw_ver < 0x4)
+			break;
+		force_detect = cp->pdata->plat_cap_prox_cfg.force_detect;
+		key_scan_mask = cp->pdata->plat_cap_prox_cfg.key_enable_mask;
+
+		/* Key1 sensor has failed, keep in force detect */
+		if ((key1_key2_signal_drift >
+			 cp->pdata->key1_failsafe_thres) &&
+			 (msg->signal2 > cp->pdata->key2_signal_thres)) {
+			/* FORCE DETECT KEY1 */
+			force_detect |= CP_STATUS_KEY1_EN_MASK;
+			/* Disable KEY1 scanning */
+			key_scan_mask &= ~CP_STATUS_KEY1_EN_MASK;
+		}
+
+		/* Key3 sensor has failed, keep in force detect */
+		if ((key3_key4_signal_drift >
+			 cp->pdata->key3_failsafe_thres) &&
+			 (msg->signal4 > cp->pdata->key4_signal_thres)) {
+			/* FORCE DETECT KEY3 */
+			force_detect |= CP_STATUS_KEY3_EN_MASK;;
+			/* Disable KEY3 scanning */
+			key_scan_mask &= ~CP_STATUS_KEY3_EN_MASK;
+		}
+
+		if (force_detect != cp->pdata->plat_cap_prox_cfg.force_detect) {
+			pr_info("%s: Force detect %x Key Enable mask %x\n",
+					__func__, force_detect, key_scan_mask);
+			if (force_detect == CP_STATUS_KEY1_KEY3_EN_FORCE_DETECT)
+				msg->status = CP_STATUS_NUM_KEYS_ENABLED;
+			cap_prox_write(cp, &force_detect, 1);
+			cap_prox_write(cp, &key_scan_mask, 1);
+		} else {
+			pr_info("%s: Sensor check passed\n", __func__);
+			status = cp->pdata->plat_cap_prox_cfg.force_detect;
+			cap_prox_write(cp, &status, 1);
+		}
+		break;
+
 	case CP_STATUS_KEY1_KEY3_EN_FORCE_DETECT:
 		/* Key1 sensor has failed, keep in force detect */
 		if ((key1_key2_signal_drift >
@@ -239,14 +299,22 @@ static int cap_prox_read_data(struct cap_prox_data *cp)
 			break;
 		}
 
-		status = msg->status & 0xF0;
-		cap_prox_write(cp,&status,1);
+		pr_info("%s: Sensor check passed\n", __func__);
+		status = cp->pdata->plat_cap_prox_cfg.force_detect;
+		cap_prox_write(cp, &status, 1);
 		break;
+
 	case CP_STATUS_KEY1_KEY3_IN_DETECT:
 		if ((key3_ref_drift < cp->pdata->key1_ref_drift_thres_h) &&
 			 (key1_ref_drift < cp->pdata->key3_ref_drift_thres_h) &&
 			 (ref_drift_diff < cp->pdata->ref_drift_diff_thres))
 			cap_prox_calibrate(cp);
+		break;
+
+	case CP_STATUS_1_KEY_EN_KEY1_FORCE_DETECT:
+	case CP_STATUS_1_KEY_EN_KEY3_FORCE_DETECT:
+		if (msg->sw_ver > 0x3)
+			msg->status = CP_STATUS_NUM_KEYS_ENABLED;
 		break;
 	default:
 		if (cp_dbg) {
@@ -319,6 +387,7 @@ static int cap_prox_probe(struct i2c_client *client,
 	struct cap_prox_data *cp;
 	struct cap_prox_msg *msg;
 	uint8_t mesg_buf[sizeof(struct cap_prox_msg)];
+	uint8_t force_detect;
 	int err = -1;
 
 	if (pdata == NULL) {
@@ -363,10 +432,12 @@ static int cap_prox_probe(struct i2c_client *client,
 	if (err)
 		goto err_out3;
 	msg = (struct cap_prox_msg *)mesg_buf;
-	pr_info("%s: msg->status 0x%2x \n", __func__, msg->status);
+	pr_info("%s: msg->status 0x%2x\n", __func__, msg->status);
 
 	/* Could be booted with body proximity, so force detect */
-	cap_prox_write(cp,&cp->pdata->plat_cap_prox_cfg.force_detect,1);
+	force_detect = cp->pdata->plat_cap_prox_cfg.force_detect
+			 | CP_STATUS_KEY3_KEY1_EN_MASK;
+	cap_prox_write(cp, &force_detect, 1);
 
 	err = request_irq(cp->client->irq, cap_prox_irq_handler,
 		 IRQF_TRIGGER_FALLING, "cap_prox_irq", cp);
