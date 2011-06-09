@@ -182,6 +182,9 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	if (plat->force_hs != 0)
 		sdhci->quirks |= SDHCI_QUIRK_FORCE_HIGH_SPEED_MODE;
 
+	if (plat->rt_disable != 0)
+		sdhci->quirks |= SDHCI_QUIRK_RUNTIME_DISABLE;
+
 	sdhci->mmc->pm_caps = MMC_PM_KEEP_POWER | MMC_PM_IGNORE_PM_NOTIFY;
 	if (plat->mmc_data.built_in)
 		sdhci->mmc->pm_flags = MMC_PM_KEEP_POWER | MMC_PM_IGNORE_PM_NOTIFY;
