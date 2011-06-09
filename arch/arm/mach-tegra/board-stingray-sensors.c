@@ -41,6 +41,7 @@
 #define KXTF9_IRQ_GPIO		TEGRA_GPIO_PV3
 #define MAX9635_IRQ_GPIO	TEGRA_GPIO_PV1
 #define BMP085_IRQ_GPIO		TEGRA_GPIO_PW0
+#define BMP085_RESET_GPIO	TEGRA_GPIO_PI3
 #define L3G4200D_DRDY_GPIO	TEGRA_GPIO_PH3
 #define AKM8975_IRQ_GPIO	TEGRA_GPIO_PQ2
 #define LM3559_RESETN_GPIO	TEGRA_GPIO_PT4
@@ -157,6 +158,10 @@ static int stingray_bmp085_init(void)
 	tegra_gpio_enable(BMP085_IRQ_GPIO);
 	gpio_request(BMP085_IRQ_GPIO, "bmp085_irq");
 	gpio_direction_input(BMP085_IRQ_GPIO);
+
+	tegra_gpio_enable(BMP085_RESET_GPIO);
+	gpio_request(BMP085_RESET_GPIO, "bmp085_reset");
+	gpio_direction_output(BMP085_RESET_GPIO, 1);
 
 	return 0;
 }
