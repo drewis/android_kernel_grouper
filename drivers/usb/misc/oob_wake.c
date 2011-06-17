@@ -132,11 +132,6 @@ static irqreturn_t oob_wake_fn(int irq, void *data)
 	if (intf)
 		wake_interface(intf);
 
-#ifdef CONFIG_HAS_WAKELOCK
-	pr_debug("%s: release wakelock %s\n", __func__, info->wake_lock.name);
-	wake_unlock(&info->wake_lock);
-#endif /* CONFIG_HAS_WAKELOCK */
-
 	return IRQ_HANDLED;
 }
 
@@ -145,8 +140,8 @@ static irqreturn_t oob_wake_isr(int irq, void *data)
 	struct oob_wake_info *info = (struct oob_wake_info *) data;
 
 #ifdef CONFIG_HAS_WAKELOCK
-	pr_debug("%s: take wakelock %s\n", __func__, info->wake_lock.name);
-	wake_lock(&info->wake_lock);
+	pr_debug("%s: take 2 sec wakelock %s\n", __func__, info->wake_lock.name);
+	wake_lock_timeout(&info->wake_lock, 2 * HZ);
 #endif /* CONFIG_HAS_WAKELOCK */
 
 	return IRQ_WAKE_THREAD;
