@@ -490,8 +490,9 @@ static int wrigley_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 		device_init_wakeup(&dev->udev->dev, 1);
 		usb_enable_autosuspend(interface_to_usbdev(intf));
 		oob_wake_register(intf);
-		dev->udev->autosuspend_delay = msecs_to_jiffies(1000);
-		dev->udev->parent->autosuspend_delay = 0;
+
+		pm_runtime_set_autosuspend_delay(&dev->udev->dev, 1000);
+		pm_runtime_set_autosuspend_delay(dev->udev->dev.parent, 0);
 	}
 	return status;
 }
