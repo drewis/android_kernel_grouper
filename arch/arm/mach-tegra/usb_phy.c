@@ -56,6 +56,7 @@
 #define   USB_WAKE_ON_CNNT_EN_DEV	(1 << 3)
 #define   USB_WAKE_ON_DISCON_EN_DEV	(1 << 4)
 #define   USB_SUSP_CLR		(1 << 5)
+#define   USB_CLKEN             (1 << 6)
 #define   USB_PHY_CLK_VALID	(1 << 7)
 #define   UTMIP_RESET			(1 << 11)
 #define   UHSIC_RESET			(1 << 11)
@@ -313,7 +314,7 @@ static int utmip_pad_power_off(struct tegra_usb_phy *phy)
 
 static int utmi_wait_register(void __iomem *reg, u32 mask, u32 result)
 {
-	unsigned long timeout = 2000;
+	unsigned long timeout = 2500;
 	do {
 		if ((readl(reg) & mask) == result)
 			return 0;
@@ -374,7 +375,7 @@ static void utmi_phy_clk_enable(struct tegra_usb_phy *phy)
 	}
 
 	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID,
-						     USB_PHY_CLK_VALID))
+						     USB_PHY_CLK_VALID) < 0)
 		pr_err("%s: timeout waiting for phy to stabilize\n", __func__);
 }
 
@@ -396,6 +397,8 @@ static int utmi_phy_power_on(struct tegra_usb_phy *phy)
 
 	val = readl(base + UTMIP_TX_CFG0);
 	val &= ~UTMIP_FS_PREABMLE_J;
+	if (phy->instance == 2)
+		val |= UTMIP_HS_DISCON_DISABLE;
 	writel(val, base + UTMIP_TX_CFG0);
 
 	val = readl(base + UTMIP_HSRX_CFG0);
@@ -715,7 +718,6 @@ static int ulpi_phy_power_on(struct tegra_usb_phy *phy)
 	unsigned long val;
 	void __iomem *base = phy->regs;
 	struct tegra_ulpi_config *config = phy->config;
-	unsigned long timeout = 2000;
 
 	clk_enable(phy->clk);
 	msleep(1);
