@@ -601,7 +601,7 @@ static int write_sync(struct qcusbnet *dev, char *buf, int size, u16 cid)
 		return -EINVAL;
 	}
 
-	result = usb_submit_urb(urb, GFP_KERNEL);
+	result = usb_submit_urb(urb, GFP_ATOMIC);
 	if (result < 0)	{
 		ERR("submit URB error %d\n", result);
 		if (client_delurb(dev, cid) != urb)
