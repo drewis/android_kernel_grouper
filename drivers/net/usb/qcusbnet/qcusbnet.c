@@ -589,7 +589,7 @@ static const struct driver_info qc_netinfo = {
 
 static const struct driver_info xoom_qc_netinfo = {
 	.description   = "Xoom QCUSBNet Ethernet Device",
-	.flags         = FLAG_ETHER,
+	.flags         = 0,
 	.bind          = xoom_qcnet_bind,
 	.unbind        = qcnet_unbind,
 	.data          = 0,
