@@ -128,7 +128,7 @@ static struct platform_device mdm6600_modem = {
 
 /* OTG gadget device */
 static struct tegra_utmip_config udc_phy_config = {
-	.hssync_start_delay = 0,
+	.hssync_start_delay = 9,
 	.idle_wait_delay = 17,
 	.elastic_limit = 16,
 	.term_range_adj = 6,
@@ -456,7 +456,7 @@ static struct platform_device acm_device = {
 
 static struct tegra_utmip_config utmi_phy_config[] = {
 	[0] = {
-		.hssync_start_delay = 0,
+		.hssync_start_delay = 9,
 		.idle_wait_delay = 17,
 		.elastic_limit = 16,
 		.term_range_adj = 6,
