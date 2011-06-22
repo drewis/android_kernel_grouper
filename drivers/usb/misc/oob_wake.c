@@ -107,10 +107,17 @@ static void wake_interface(struct usb_interface *intf)
 {
 	pr_debug("%s: called\n", __func__);
 
+	/* Don't proceed during device state transitions. */
+	if (intf->dev.power.status < DPM_OFF &&
+	    intf->dev.power.status != DPM_ON) {
+		if (!wait_for_completion_timeout(&intf->dev.power.completion,
+		                                                          HZ))
+			pr_err("%s: wait timed out", __func__);
+	}
+
 	device_lock(&intf->dev);
 
-	if (intf->dev.power.status >= DPM_OFF ||
-			intf->dev.power.status == DPM_RESUMING) {
+	if (intf->dev.power.status != DPM_ON) {
 		device_unlock(&intf->dev);
 		return;
 	}
