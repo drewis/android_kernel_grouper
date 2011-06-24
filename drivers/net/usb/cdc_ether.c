@@ -32,7 +32,9 @@
 #include <linux/usb/cdc.h>
 #include <linux/usb/usbnet.h>
 #include <linux/usb/oob_wake.h>
-
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#endif /* CONFIG_HAS_WAKELOCK */
 
 #if defined(CONFIG_USB_NET_RNDIS_HOST) || defined(CONFIG_USB_NET_RNDIS_HOST_MODULE)
 
@@ -126,7 +128,10 @@ int usbnet_generic_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 		 is_activesync(&intf->cur_altsetting->desc) ||
 		 is_wireless_rndis(&intf->cur_altsetting->desc));
 
-	memset(info, 0, sizeof *info);
+	info->header  = 0;
+	info->u       = 0;
+	info->ether   = 0;
+	info->data    = 0;
 	info->control = intf;
 	while (len > 3) {
 		if (buf [1] != USB_DT_CS_INTERFACE)
@@ -355,6 +360,11 @@ void usbnet_cdc_unbind(struct usbnet *dev, struct usb_interface *intf)
 		usb_driver_release_interface(driver, info->control);
 		info->control = NULL;
 	}
+#ifdef CONFIG_HAS_WAKELOCK
+	if (dev->driver_info->flags & FLAG_WAKELOCK) {
+		wake_lock_destroy(&info->wake_lock);
+	}
+#endif
 }
 EXPORT_SYMBOL_GPL(usbnet_cdc_unbind);
 
@@ -437,6 +447,12 @@ int usbnet_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 		return status;
 	}
 
+#ifdef CONFIG_HAS_WAKELOCK
+	if (dev->driver_info->flags & FLAG_WAKELOCK) {
+		wake_lock_init(&info->wake_lock, WAKE_LOCK_SUSPEND,
+						intf->dev.driver->name);
+	}
+#endif
 	/* FIXME cdc-ether has some multicast code too, though it complains
 	 * in routine cases.  info->ether describes the multicast support.
 	 * Implement that here, manipulating the cdc filter as needed.
@@ -499,7 +515,7 @@ static int wrigley_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 
 static const struct driver_info wrigley_cdc_info = {
 	.description =	"Motorola Wrigley LTE CDC Ethernet Device",
-	.flags =	FLAG_ETHER,
+	.flags =	FLAG_ETHER | FLAG_WAKELOCK,
 	.bind =		wrigley_cdc_bind,
 	.unbind =	wrigley_cdc_unbind,
 	.status =	usbnet_cdc_status,
@@ -650,14 +666,47 @@ static const struct usb_device_id	products [] = {
 };
 MODULE_DEVICE_TABLE(usb, products);
 
+static int cdc_ether_suspend(struct usb_interface *intf, pm_message_t message)
+{
+	int ret;
+#ifdef CONFIG_HAS_WAKELOCK
+	struct usbnet        *dev = usb_get_intfdata(intf);
+	struct cdc_state     *info = (void *) &dev->data;
+#endif /* CONFIG_HAS_WAKELOCK */
+	ret = usbnet_suspend(intf, message);
+#ifdef CONFIG_HAS_WAKELOCK
+	if (!ret &&
+	    dev->driver_info->flags & FLAG_WAKELOCK &&
+	    message.event & PM_EVENT_AUTO) {
+		wake_lock_timeout(&info->wake_lock, HZ/10);
+	}
+#endif /* CONFIG_HAS_WAKELOCK */
+	return ret;
+}
+static int cdc_ether_resume(struct usb_interface *intf)
+{
+	int ret;
+#ifdef CONFIG_HAS_WAKELOCK
+	struct usbnet        *dev = usb_get_intfdata(intf);
+	struct cdc_state     *info = (void *) &dev->data;
+#endif /* CONFIG_HAS_WAKELOCK */
+	ret = usbnet_resume(intf);
+#ifdef CONFIG_HAS_WAKELOCK
+	if (!ret && dev->driver_info->flags & FLAG_WAKELOCK) {
+		wake_lock(&info->wake_lock);
+	}
+#endif /* CONFIG_HAS_WAKELOCK */
+	return ret;
+}
+
 static struct usb_driver cdc_driver = {
 	.name =		"cdc_ether",
 	.id_table =	products,
 	.probe =	usbnet_probe,
 	.disconnect =	usbnet_disconnect,
-	.suspend =	usbnet_suspend,
-	.resume =	usbnet_resume,
-	.reset_resume =	usbnet_resume,
+	.suspend =	cdc_ether_suspend,
+	.resume =	cdc_ether_resume,
+	.reset_resume =	cdc_ether_resume,
 	.supports_autosuspend = 1,
 };
 
