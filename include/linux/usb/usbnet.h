@@ -22,6 +22,14 @@
 #ifndef	__LINUX_USB_USBNET_H
 #define	__LINUX_USB_USBNET_H
 
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#define USBNET_DATASIZE (5 + sizeof(struct wake_lock)/sizeof(long) + 1)
+#else
+#define USBNET_DATASIZE 5
+#error
+#endif /* CONFIG_HAS_WAKELOCK */
+
 /* interface from usbnet core to each USB networking link we handle */
 struct usbnet {
 	/* housekeeping */
@@ -43,7 +51,7 @@ struct usbnet {
 	/* protocol/interface state */
 	struct net_device	*net;
 	int			msg_enable;
-	unsigned long		data[5];
+	unsigned long		data[USBNET_DATASIZE];
 	u32			xid;
 	u32			hard_mtu;	/* count any extra framing */
 	size_t			rx_urb_size;	/* size for rx urbs */
@@ -97,6 +105,7 @@ struct driver_info {
 #define FLAG_WWAN	0x0400		/* use "wwan%d" names */
 
 #define FLAG_LINK_INTR	0x0800		/* updates link (carrier) status */
+#define FLAG_WAKELOCK	0x1000		/* Hold a wake lock until suspended */
 
 	/* init device ... can sleep, or cause probe() failure */
 	int	(*bind)(struct usbnet *, struct usb_interface *);
@@ -164,6 +173,9 @@ struct cdc_state {
 	struct usb_cdc_ether_desc	*ether;
 	struct usb_interface		*control;
 	struct usb_interface		*data;
+#ifdef CONFIG_HAS_WAKELOCK
+	struct wake_lock			wake_lock;
+#endif /* CONFIG_HAS_WAKELOCK */
 };
 
 extern int usbnet_generic_cdc_bind(struct usbnet *, struct usb_interface *);
