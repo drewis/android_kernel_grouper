@@ -32,6 +32,10 @@
 
 #include <linux/fdtable.h>
 
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#endif /* CONFIG_HAS_WAKELOCK */
+
 #define DBG(fmt, arg...)						\
 do {									\
 	if (qcusbnet_debug == 1)					\
@@ -93,6 +97,9 @@ struct qcusbnet {
 	struct qmidev qmi;
 	char meid[14];
 	struct worker worker;
+#ifdef CONFIG_HAS_WAKELOCK
+	struct wake_lock wake_lock;
+#endif /* CONFIG_HAS_WAKELOCK */
 };
 
 #endif /* !QCUSBNET_STRUCTS_H */

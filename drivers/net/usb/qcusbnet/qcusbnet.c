@@ -33,9 +33,20 @@ static DEFINE_MUTEX(qcusbnet_lock);
 int qcusbnet_debug;
 static struct class *devclass;
 
+#ifdef CONFIG_HAS_WAKELOCK
+#define QC_WAKE_LOCK wake_lock
+#define QC_WAKE_UNLOCK(X) wake_lock_timeout(X, HZ/10)
+#else
+#define QC_WAKE_LOCK
+#define QC_WAKE_UNLOCK
+#endif /* CONFIG_HAS_WAKELOCK */
+
 static void free_dev(struct kref *ref)
 {
 	struct qcusbnet *dev = container_of(ref, struct qcusbnet, refcount);
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_destroy(&dev->wake_lock);
+#endif /* CONFIG_HAS_WAKELOCK */
 	list_del(&dev->node);
 	kfree(dev);
 }
@@ -86,6 +97,7 @@ int qc_suspend(struct usb_interface *iface, pm_message_t event)
 {
 	struct usbnet *usbnet;
 	struct qcusbnet *dev;
+	int ret;
 
 	if (!iface)
 		return -ENOMEM;
@@ -119,7 +131,12 @@ int qc_suspend(struct usb_interface *iface, pm_message_t event)
 		usbnet->udev->reset_resume = 1;
 	}
 
-	return usbnet_suspend(iface, event);
+	ret = usbnet_suspend(iface, event);
+	if (!ret && (event.event & PM_EVENT_AUTO)) {
+		QC_WAKE_UNLOCK(&dev->wake_lock);
+	}
+
+	return ret;
 }
 
 static int qc_resume(struct usb_interface *iface)
@@ -150,17 +167,20 @@ static int qc_resume(struct usb_interface *iface)
 	DBG("resuming from power mode %d\n", oldstate);
 
 	if (oldstate & PM_EVENT_SUSPEND) {
+		QC_WAKE_LOCK(&dev->wake_lock);
 		qc_cleardown(dev, DOWN_DRIVER_SUSPENDED);
 		netif_start_queue(usbnet->net);
 		ret = usbnet_resume(iface);
 		if (ret) {
 			ERR("usbnet_resume error %d\n", ret);
+			QC_WAKE_UNLOCK(&dev->wake_lock);
 			return ret;
 		}
 
 		ret = qc_startread(dev);
 		if (ret) {
 			ERR("qc_startread error %d\n", ret);
+			QC_WAKE_UNLOCK(&dev->wake_lock);
 			return ret;
 		}
 
@@ -674,6 +694,11 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 		ERR("failed to allocate device buffers\n");
 		return -ENOMEM;
 	}
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_init(&dev->wake_lock, WAKE_LOCK_SUSPEND,
+		iface->dev.driver->name);
+#endif /* CONFIG_HAS_WAKELOCK */
+
 
 	usbnet->data[0] = (unsigned long)dev;
 
