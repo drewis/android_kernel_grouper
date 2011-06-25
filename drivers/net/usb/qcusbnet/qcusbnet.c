@@ -335,6 +335,7 @@ static int qcnet_worker(void *arg)
 	unsigned long activeflags, listflags;
 	struct urbreq *req;
 	int status;
+        bool log_errors = 1;
 	struct usb_device *usbdev;
 	struct usb_interface *iface;
 	struct worker *worker = arg;
@@ -407,7 +408,10 @@ static int qcnet_worker(void *arg)
 		device_unlock(&iface->dev);
 
 		if (status < 0) {
-			ERR("unable to autoresume interface: %d\n", status);
+                        if (log_errors) {
+			    ERR("unable to autoresume interface: %d\n", status);
+                            log_errors = 0;
+                        }
 			if (status == -EPERM)
 				qc_suspend(iface, PMSG_SUSPEND);
 
@@ -419,6 +423,7 @@ static int qcnet_worker(void *arg)
 			worker->active = NULL;
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
 
+                        msleep(20);
 			continue;
 		}
 
@@ -434,6 +439,8 @@ static int qcnet_worker(void *arg)
 		}
 
 		kfree(req);
+
+                log_errors = 1;
 	}
 
 	DBG("traffic thread exiting\n");
