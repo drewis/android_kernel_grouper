@@ -27,8 +27,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/err.h>
 
-#define DEBUG
-
 #define LD_LP8550_ON_OFF_MASK 0xFE
 
 #define LD_LP8550_ALLOWED_R_BYTES 1
@@ -217,14 +215,12 @@ static void lp8550_brightness_write(struct lp8550_data *led_data)
 			__func__, brightness);
 
 	if (brightness == LED_OFF) {
-		if (lp8550_write_reg(led_data, LP8550_DEVICE_CTRL,
-				LP8550_BRT_MODE_BRIGHT)) {
-			pr_err("%s:writing failed while setting brightness:%d\n",
-				__func__, error);
-		}
-		if (atomic_cmpxchg(&led_data->enabled, 1, 0))
+		if (atomic_cmpxchg(&led_data->enabled, 1, 0)) {
+			if (lp8550_write_reg(led_data, LP8550_DEVICE_CTRL, LP8550_BRT_MODE_BRIGHT))
+				pr_err("%s:writing failed while setting brightness:%d\n", __func__, error);
 			if (!IS_ERR_OR_NULL(led_data->regulator))
 				regulator_disable(led_data->regulator);
+		}
 	} else {
 		if (!atomic_cmpxchg(&led_data->enabled, 0, 1)) {
 			if (!IS_ERR_OR_NULL(led_data->regulator))
