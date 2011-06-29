@@ -45,7 +45,7 @@
 #define BP_STATUS_UNDEFINED         0x07
 
 
-#define LOOP_DELAY_TIME_MS          500
+#define LOOP_DELAY_TIME_MS          100
 
 static const char *mdmctrl = "mdm6600_ctrl";
 
@@ -491,27 +491,30 @@ static unsigned int __devexit bp_shutdown_wait(unsigned int delay_sec)
 	unsigned int i, loop_count;
 	unsigned int bp_status;
 	unsigned int gpio_value;
+	unsigned int bp_pd_ack = 0;
 	unsigned int pd_failure = 1;
 
 	loop_count = (delay_sec * 1000) / LOOP_DELAY_TIME_MS;
 
 	for (i = 0; i < loop_count; i++) {
-		msleep(LOOP_DELAY_TIME_MS);
-		bp_status = get_bp_status();
-		if (bp_status == BP_STATUS_SHUTDOWN_ACK) {
-			pr_info("%s: Modem powered off (with ack).", mdmctrl);
-			pd_failure = 0;
-			break;
+		if (!bp_pd_ack) {
+			bp_status = get_bp_status();
+			if (bp_status == BP_STATUS_SHUTDOWN_ACK) {
+				pr_info("%s: Modem ack'd power off.", mdmctrl);
+				bp_pd_ack = 1;
+				set_bp_pwron(0);
+			}
 		}
 
 		gpio_value = get_bp_power_status();
-
 		if (gpio_value == 0) {
 			pr_info("%s: Modem powered off.", mdmctrl);
 			pd_failure = 0;
 			break;
 		}
+		msleep(LOOP_DELAY_TIME_MS);
 	}
+	set_bp_pwron(0);
 	return pd_failure;
 }
 
@@ -526,27 +529,36 @@ static void __devexit mdm_ctrl_shutdown(struct platform_device *pdev)
 	pr_info("%s: Initial Modem status %s [0x%x]",
 		mdmctrl, bp_status_string(bp_status), bp_status);
 
-	set_ap_status(AP_STATUS_BP_SHUTDOWN_REQ);
+	/* Do an initial check of BP power before attempting shutdown */
+	pd_failure = get_bp_power_status();
+	if (!pd_failure) {
+		pr_err("%s: Modem powered off before shutdown.", mdmctrl);
+		/* Force uevent update */
+		/* If we hit this case, there is a status     */
+		/* misalignment between user space and kernel */
+		update_bp_status();
+	} else {
+		set_ap_status(AP_STATUS_BP_SHUTDOWN_REQ);
 
-	/* Allow modem to process status */
-	msleep(100);
-	pr_info("%s: ap_status set to %d", mdmctrl, get_ap_status());
+		/* Allow modem to process status */
+		msleep(100);
+		pr_info("%s: ap_status set to %d", mdmctrl, get_ap_status());
 
-	/* Assert PWRON to tell modem to shutdown and leave pin asserted */
-	/* until acknowledged or wait times out */
-	set_bp_pwron(1);
-	msleep(100);
+		/* Assert PWRON to trigger modem to shutdown */
+		/* until acknowledged or wait times out */
+		set_bp_pwron(1);
+		msleep(100);
 
-	/* This should be enough to power down the modem */
-	/* if this doesn't work, reset the modem and try */
-	/* one more time, ultimately the modem will be   */
-	/* hard powered off */
-	pd_failure = bp_shutdown_wait(5);
-	set_bp_pwron(0);
-	if (pd_failure) {
-		pr_info("%s: Resetting unresponsive modem.", mdmctrl);
-		set_bp_resin(1);
+		/* This should be enough to power down the modem */
+		/* if this doesn't work, reset the modem and try */
+		/* one more time, ultimately the modem will be   */
+		/* hard powered off */
 		pd_failure = bp_shutdown_wait(5);
+		if (pd_failure) {
+			pr_info("%s: Resetting unresponsive modem.", mdmctrl);
+			set_bp_resin(1);
+			pd_failure = bp_shutdown_wait(5);
+		}
 	}
 
 	if (pd_failure)
