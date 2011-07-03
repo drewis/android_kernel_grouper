@@ -603,8 +603,11 @@ int qcnet_stop(struct net_device *netdev)
 	kthread_stop(dev->worker.thread);
 	DBG("thread stopped\n");
 
-	if (dev->stop != NULL)
+	if (dev->stop != NULL) {
+		/* stop interface will do a put on this iface */
+		usb_autopm_get_interface_no_resume(dev->iface);
 		return dev->stop(netdev);
+	}
 	return 0;
 }
 
