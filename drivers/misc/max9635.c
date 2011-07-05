@@ -32,8 +32,6 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 
-#define DEBUG	1
-
 #define MAX9635_ALLOWED_R_BYTES 1
 #define MAX9635_ALLOWED_W_BYTES 2
 #define MAX9635_MAX_RW_RETRIES 5
@@ -298,12 +296,12 @@ static int max9635_enable(struct max9635_data *als_data)
 
 static int max9635_disable(struct max9635_data *als_data)
 {
+	cancel_delayed_work_sync(&als_data->working_queue);
 	if (atomic_cmpxchg(&als_data->enabled, 1, 0)) {
+		max9635_device_power(als_data, 0x00);
 		if (!IS_ERR_OR_NULL(als_data->regulator))
 			regulator_disable(als_data->regulator);
-		max9635_device_power(als_data, 0x00);
 	}
-	cancel_delayed_work_sync(&als_data->working_queue);
 
 	return 0;
 }
