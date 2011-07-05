@@ -89,10 +89,10 @@ struct mdm6600_port {
 	struct mdm6600_urb_write_pool write;
 	struct mdm6600_urb_read_pool read;
 
-	struct wake_lock readlock;
-	char readlock_name[16];
-	struct wake_lock writelock;
-	char writelock_name[16];
+	struct wake_lock oobwake;
+	char oobwake_name[16];
+	struct wake_lock wakelock;
+	char wakelock_name[16];
 
 	spinlock_t susp_lock;
 	int susp_count;
@@ -151,7 +151,7 @@ static irqreturn_t mdm6600_irq_handler(int irq, void *ptr)
 	}
 	spin_unlock(&mdm6600_wake_irq_lock);
 
-	wake_lock_timeout(&modem->readlock, MODEM_WAKELOCK_TIME);
+	wake_lock_timeout(&modem->oobwake, MODEM_WAKELOCK_TIME);
 	queue_work(system_nrt_wq, &modem->wake_work);
 
 	return IRQ_HANDLED;
@@ -255,13 +255,12 @@ static int mdm6600_attach(struct usb_serial *serial)
 	spin_lock_init(&modem->susp_lock);
 	spin_lock_init(&modem->write.pending_lock);
 
-	snprintf(modem->readlock_name, sizeof(modem->readlock_name),
-					"mdm6600_read.%d", modem->number);
-	wake_lock_init(&modem->readlock, WAKE_LOCK_SUSPEND, modem->readlock_name);
-
-	snprintf(modem->writelock_name, sizeof(modem->writelock_name),
-					"mdm6600_write.%d", modem->number);
-	wake_lock_init(&modem->writelock, WAKE_LOCK_SUSPEND, modem->writelock_name);
+	snprintf(modem->oobwake_name, sizeof(modem->oobwake_name),
+					"mdm6600_oob.%d", modem->number);
+	wake_lock_init(&modem->oobwake, WAKE_LOCK_SUSPEND, modem->oobwake_name);
+	snprintf(modem->wakelock_name, sizeof(modem->wakelock_name),
+					"mdm6600.%d", modem->number);
+	wake_lock_init(&modem->wakelock, WAKE_LOCK_SUSPEND, modem->wakelock_name);
 
 	usb_get_intf(serial->interface);
 	usb_enable_autosuspend(serial->dev);
@@ -340,8 +339,8 @@ static void mdm6600_disconnect(struct usb_serial *serial)
 
 	modem->tiocm_status = 0;
 
-	wake_lock_destroy(&modem->readlock);
-	wake_lock_destroy(&modem->writelock);
+	wake_lock_destroy(&modem->oobwake);
+	wake_lock_destroy(&modem->wakelock);
 
 	mdm6600_attached_ports--;
 }
@@ -467,10 +466,8 @@ static void mdm6600_write_bulk_cb(struct urb *u)
 	usb_anchor_urb(u, &modem->write.free_list);
 
 	spin_lock_irqsave(&modem->write.pending_lock, flags);
-	if (--modem->write.pending == 0) {
+	if (--modem->write.pending == 0)
 		usb_autopm_put_interface_async(modem->serial->interface);
-		wake_unlock(&modem->writelock);
-	}
 	spin_unlock_irqrestore(&modem->write.pending_lock, flags);
 }
 
@@ -502,10 +499,8 @@ static int mdm6600_write(struct tty_struct *tty, struct usb_serial_port *port,
 		u->transfer_buffer_length, u->transfer_buffer);
 
 	spin_lock_irqsave(&modem->write.pending_lock, flags);
-	if (modem->write.pending++ == 0) {
-		wake_lock(&modem->writelock);
+	if (modem->write.pending++ == 0)
 		usb_autopm_get_interface_async(modem->serial->interface);
-	}
 	spin_unlock_irqrestore(&modem->write.pending_lock, flags);
 
 	spin_lock_irqsave(&mdm6600_wake_irq_lock, flags);
@@ -534,10 +529,8 @@ static int mdm6600_write(struct tty_struct *tty, struct usb_serial_port *port,
 		usb_put_urb(u);
 
 		spin_lock_irqsave(&modem->write.pending_lock, flags);
-		if (--modem->write.pending == 0) {
+		if (--modem->write.pending == 0)
 			usb_autopm_put_interface_async(serial->interface);
-			wake_unlock(&modem->writelock);
-		}
 		spin_unlock_irqrestore(&modem->write.pending_lock, flags);
 		return rc;
 	}
@@ -828,7 +821,6 @@ static void mdm6600_read_bulk_cb(struct urb *u)
 		return;
 	}
 
-	wake_lock_timeout(&modem->readlock, MODEM_WAKELOCK_TIME);
 	usb_mark_last_busy(modem->serial->dev);
 
 	usb_anchor_urb(u, &modem->read.pending);
@@ -840,8 +832,15 @@ static int mdm6600_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	struct usb_serial *serial = usb_get_intfdata(intf);
 	struct mdm6600_port *modem = usb_get_serial_data(serial);
+	unsigned long threshold_time;
 
 	dbg("%s: event=%d", __func__, message.event);
+
+	threshold_time = serial->dev->dev.power.last_busy +
+				msecs_to_jiffies(MODEM_AUTOSUSPEND_DELAY_MSECS);
+
+	if (time_before(jiffies, threshold_time))
+		return -EBUSY;
 
 	if (modem->number == MODEM_INTERFACE_NUM) {
 		spin_lock_irq(&mdm6600_wake_irq_lock);
@@ -859,6 +858,7 @@ static int mdm6600_suspend(struct usb_interface *intf, pm_message_t message)
 
 		dbg("%s: kill urbs", __func__);
 		mdm6600_kill_urbs(modem);
+		wake_lock_timeout(&modem->wakelock, HZ/10);
 		return 0;
 	}
 
@@ -883,9 +883,10 @@ static int mdm6600_resume(struct usb_interface *intf)
 	}
 
 	if (!--modem->susp_count && modem->opened) {
-		dbg("%s: submit urbs", __func__);
 		spin_unlock_irq(&modem->susp_lock);
 
+		dbg("%s: submit urbs", __func__);
+		wake_lock(&modem->wakelock);
 		mdm6600_submit_urbs(modem);
 
 		while ((u = usb_get_from_anchor(&modem->write.delayed))) {
