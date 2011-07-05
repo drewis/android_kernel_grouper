@@ -305,7 +305,7 @@ void usbnet_defer_kevent (struct usbnet *dev, int work)
 {
 	set_bit (work, &dev->flags);
 	if (!schedule_work (&dev->kevent))
-		netdev_err(dev->net, "kevent %d may have been dropped\n", work);
+		netdev_dbg(dev->net, "kevent %d may have been dropped\n", work);
 	else
 		netdev_dbg(dev->net, "kevent %d scheduled\n", work);
 }
@@ -1168,6 +1168,7 @@ static void usbnet_bh (unsigned long param)
 	struct usbnet		*dev = (struct usbnet *) param;
 	struct sk_buff		*skb;
 	struct skb_data		*entry;
+	int			err;
 
 	while ((skb = skb_dequeue (&dev->done))) {
 		entry = (struct skb_data *) skb->cb;
@@ -1208,8 +1209,8 @@ static void usbnet_bh (unsigned long param)
 			for (i = 0; i < 10 && dev->rxq.qlen < qlen; i++) {
 				urb = usb_alloc_urb (0, GFP_ATOMIC);
 				if (urb != NULL) {
-					if (rx_submit (dev, urb, GFP_ATOMIC) ==
-					    -ENOLINK)
+					err = rx_submit (dev, urb, GFP_ATOMIC);
+					if (err == -ENOLINK || err == -ENOMEM)
 						return;
 				}
 			}
