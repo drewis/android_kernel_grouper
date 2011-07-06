@@ -1342,7 +1342,10 @@ void qc_deregister(struct qcusbnet *dev)
 	unsigned long flags;
 
 	mutex_lock(&dev->mutex);
-
+	if (!dev->valid) {
+		mutex_unlock(&dev->mutex);
+		return;
+	}
 	dev->dying = true;
 	qc_stopread(dev);
 
