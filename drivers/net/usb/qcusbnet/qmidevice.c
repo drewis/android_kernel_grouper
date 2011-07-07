@@ -594,6 +594,7 @@ static int write_sync(struct qcusbnet *dev, char *buf, int size, u16 cid)
 	spin_lock_irqsave(&dev->qmi.clients_lock, flags);
 	if (client_delurb(client) != urb) {
 		ERR("Didn't get write URB back\n");
+		usb_free_urb(urb);
 		spin_unlock_irqrestore(&dev->qmi.clients_lock, flags);
 		return -EINVAL;
 	}
