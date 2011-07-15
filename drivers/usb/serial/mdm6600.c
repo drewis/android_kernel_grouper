@@ -125,6 +125,16 @@ static void mdm6600_wake_work(struct work_struct *work)
 
 	dbg("%s: port %d", __func__, modem->number);
 
+	/* Don't proceed during device state transitions. */
+	/* FIXME: Is this still needed:
+	if (intf->dev.power.status < DPM_OFF &&
+	    intf->dev.power.status != DPM_ON) {
+		if (!wait_for_completion_timeout(&intf->dev.power.completion,
+		                                                          HZ))
+			pr_err("%s: wait timed out", __func__);
+	}
+	*/
+
 	device_lock(&intf->dev);
 
 	if (intf->dev.power.in_suspend) {
