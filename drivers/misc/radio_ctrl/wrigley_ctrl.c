@@ -67,6 +67,7 @@ struct wrigley_info {
 	void (*handle_radio_off)(enum wrigley_status);
 
 	bool boot_flash;
+	bool allow_reboot;
 	enum wrigley_status status;
 
 	struct radio_dev rdev;
@@ -226,6 +227,12 @@ static ssize_t wrigley_command(struct radio_dev *rdev, char *cmd)
 		status = wrigley_set_flash_mode(info, 0);
 	} else if (strcmp(cmd, "bootmode_flash") == 0) {
 		status = wrigley_set_flash_mode(info, 1);
+	} else if (strcmp(cmd, "allow_reboot_on") == 0) {
+		info->allow_reboot = 1;
+		status = 0;
+	} else if (strcmp(cmd, "allow_reboot_off") == 0) {
+		info->allow_reboot = 0;
+		status = 0;
 	} else {
 		pr_err("%s: command %s not supported\n", __func__, cmd);
 		status = -EINVAL;
@@ -306,8 +313,13 @@ static irqreturn_t wrigley_reset_isr(int irq, void *data)
 			/* data-card will restart by default, it is simplier for
 			   user space if off means off and return IRQ_HANDLED so
 			   user-space will only see the new startup or the full
-			   powerdown */
-			gpio_direction_output(info->disable_gpio, 0);
+			   powerdown. In one case, when a secure fuse is being
+			   blown on the card, we need to allow reboot */
+			if (likely(!info->allow_reboot))
+				gpio_direction_output(info->disable_gpio, 0);
+			else
+				pr_info("%s: allow card to reboot.", __func__);
+
 			wrigley_set_status(info, WRIGLEY_STATUS_RESETTING);
 			schedule_delayed_work(&info->work, RESTART_DELAY);
 			return IRQ_HANDLED;
