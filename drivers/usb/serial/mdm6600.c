@@ -292,7 +292,6 @@ static int mdm6600_attach(struct usb_serial *serial)
 		}
 		spin_lock_irq(&mdm6600_wake_irq_lock);
 		enable_irq_wake(mdm6600_wake_irq);
-		enable_irq(mdm6600_wake_irq);
 		mdm6600_wake_irq_enabled = true;
 		spin_unlock_irq(&mdm6600_wake_irq_lock);
 	}
