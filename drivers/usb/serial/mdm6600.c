@@ -173,6 +173,7 @@ static int mdm6600_attach(struct usb_serial *serial)
 {
 	int i;
 	int status;
+        unsigned long flags;
 	struct mdm6600_port *modem;
 	struct usb_host_interface *host_iface =
 		serial->interface->cur_altsetting;
@@ -292,10 +293,10 @@ static int mdm6600_attach(struct usb_serial *serial)
 			status = -ENXIO;
 			goto err_out;
 		}
-		spin_lock_irq(&mdm6600_wake_irq_lock);
+		spin_lock_irqsave(&mdm6600_wake_irq_lock, flags);
 		enable_irq_wake(mdm6600_wake_irq);
 		mdm6600_wake_irq_enabled = true;
-		spin_unlock_irq(&mdm6600_wake_irq_lock);
+		spin_unlock_irqrestore(&mdm6600_wake_irq_lock, flags);
 	}
 
 	return 0;
@@ -799,6 +800,7 @@ next:
 static void mdm6600_read_bulk_cb(struct urb *u)
 {
 	int rc;
+	unsigned long flags;
 	struct mdm6600_port *modem = u->context;
 
 	dbg("%s: urb %p", __func__, u);
@@ -828,12 +830,12 @@ static void mdm6600_read_bulk_cb(struct urb *u)
 	}
 
 	/* Modem is alive, re-enable wake IRQ */
-	spin_lock_irq(&mdm6600_wake_irq_lock);
+	spin_lock_irqsave(&mdm6600_wake_irq_lock, flags);
 	if (!mdm6600_wake_irq_enabled) {
 		enable_irq(mdm6600_wake_irq);
 		mdm6600_wake_irq_enabled = true;
 	}
-	spin_unlock_irq(&mdm6600_wake_irq_lock);
+	spin_unlock_irqrestore(&mdm6600_wake_irq_lock, flags);
 
 	usb_mark_last_busy(modem->serial->dev);
 
