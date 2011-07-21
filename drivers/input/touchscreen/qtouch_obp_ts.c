@@ -124,12 +124,14 @@ module_param_named(disable_touch, qtouch_disable_touch, uint, 0644);
 static irqreturn_t qtouch_ts_irq_handler(int irq, void *dev_id)
 {
 	struct qtouch_ts_data *ts = dev_id;
+	int ret;
 
 	disable_irq_nosync(ts->client->irq);
 	if (ts->mode == 1)
-		queue_work(qtouch_ts_wq, &ts->boot_work);
+		ret = queue_work(qtouch_ts_wq, &ts->boot_work);
 	else
-		queue_work(qtouch_ts_wq, &ts->work);
+		ret = queue_work(qtouch_ts_wq, &ts->work);
+	WARN_ON(!ret);
 
 	return IRQ_HANDLED;
 }
@@ -1870,7 +1872,7 @@ static int qtouch_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 		return -EBUSY;
 
 	if (ts->enable_irq_flag)
-		disable_irq_nosync(ts->client->irq);
+		disable_irq(ts->client->irq);
 	ret = cancel_work_sync(&ts->work);
 	if (ret) { /* if work was pending disable-count is now 2 */
 		pr_info("%s: Pending work item\n", __func__);
@@ -1927,6 +1929,11 @@ static int qtouch_ts_resume(struct i2c_client *client)
 	input_sync(ts->input_dev);
 
 	ret = qtouch_power_config(ts, 1);
+	if (ret == -EIO) {
+		pr_err("%s: Couldn't write power config. Resetting touch ic and retrying..\n", __func__);
+		qtouch_force_reset(ts, 0);
+		ret = qtouch_power_config(ts, 1);
+	}
 	if (ret < 0) {
 		pr_err("%s: Cannot write power config\n", __func__);
 		ts->enable_irq_flag = 0;
