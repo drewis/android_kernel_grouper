@@ -255,9 +255,12 @@ static int xoom_qcnet_bind(struct usbnet *usbnet, struct usb_interface *iface)
 {
 	int status = qcnet_bind(usbnet, iface);
 
-	if (!status)
+	if (!status) {
 		usbnet->rx_urb_size = XOOM_DOWNLINK_MTU +
 					usbnet->net->hard_header_len;
+		usbnet->udev->autosuspend_delay = msecs_to_jiffies(1000);
+		usbnet->udev->parent->autosuspend_delay = 0;
+	}
 
 	return status;
 }
