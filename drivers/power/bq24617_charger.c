@@ -107,7 +107,7 @@ static irqreturn_t bq24617_detect_isr(int irq, void *data)
 	struct bq24617_data *bq_data = data;
 	unsigned long flags;
 
-	cancel_delayed_work(&bq_data->work);
+	__cancel_delayed_work(&bq_data->work);
 
 	spin_lock_irqsave(&bq_data->stat_irq_lock, flags);
 	if (bq_data->stat_irq_en) {
