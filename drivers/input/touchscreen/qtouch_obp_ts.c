@@ -884,9 +884,9 @@ static int do_touch_multi_msg(struct qtouch_ts_data *ts, struct qtm_object *obj,
 	for (i = 0; i < ts->pdata->multi_touch_cfg.num_touch; i++) {
 		if (ts->finger_data[i].down == 0)
 			continue;
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR,
+		input_report_abs(ts->input_dev, ABS_MT_PRESSURE,
 				 ts->finger_data[i].z_data);
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR,
+		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR,
 				 ts->finger_data[i].w_data);
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_X,
 				 ts->finger_data[i].x_data);
@@ -1089,10 +1089,10 @@ static int qtouch_ts_register_input(struct qtouch_ts_data *ts)
 		input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y,
 				     ts->pdata->abs_min_y, ts->pdata->abs_max_y,
 				     ts->pdata->fuzz_y, 0);
-		input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR,
+		input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE,
 				     ts->pdata->abs_min_p, ts->pdata->abs_max_p,
 				     ts->pdata->fuzz_p, 0);
-		input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR,
+		input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR,
 				     ts->pdata->abs_min_w, ts->pdata->abs_max_w,
 				     ts->pdata->fuzz_w, 0);
 		input_set_abs_params(ts->input_dev, ABS_MT_ORIENTATION,
