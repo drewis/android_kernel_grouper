@@ -284,7 +284,7 @@ static irqreturn_t wrigley_reset_isr(int irq, void *data)
 {
 	struct wrigley_info *info = (struct wrigley_info *) data;
 
-	cancel_delayed_work(&info->work);
+	__cancel_delayed_work(&info->work);
 	if (gpio_get_value(info->reset_gpio)) {
 		pr_debug("%s: rising edge irq (%d)\n", __func__, irq);
 		if (info->status == WRIGLEY_STATUS_PWRUP) {
