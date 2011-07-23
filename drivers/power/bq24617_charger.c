@@ -116,13 +116,6 @@ static irqreturn_t bq24617_detect_isr(int irq, void *data)
 		bq_data->stat_irq_en = false;
 	}
 	spin_unlock_irqrestore(&bq_data->stat_irq_lock, flags);
-
-	/* The STAT lines cannot be trusted immediately after a charger
-	 * insertion. Default the STAT lines to their "not charging" values.
-	 */
-	bq24617_stat1_value = 1;
-	bq24617_stat2_value = 1;
-
 	bq_data->ac_online = gpio_get_value(irq_to_gpio(bq_data->detect_irq));
 	pr_debug("%s: ac_online=%d\n", __func__, bq_data->ac_online);
 
