@@ -69,8 +69,7 @@ static int ts27010_ldisc_open(struct tty_struct *tty)
 	INIT_WORK(&ts->recv_work, ts27010_ldisc_recv_worker);
 
 	mutex_init(&ts->send_lock);
-	ts->recv_lock = __SPIN_LOCK_UNLOCKED(ts->recv_lock);
-
+	spin_lock_init(&ts->recv_lock);
 	tty->disc_data = ts;
 
 	/* TODO: goes away with clean tty interface */
