@@ -916,7 +916,8 @@ static int mdm6600_resume(struct usb_interface *intf)
 			usb_put_urb(u);
 		}
 
-		return 0;
+		rc = 0;
+		goto out;
 	}
 
 	spin_unlock_irq(&modem->susp_lock);
@@ -927,6 +928,11 @@ err:
 		usb_anchor_urb(u, &modem->write.free_list);
 		usb_put_urb(u);
 	}
+
+out:
+	/* Force autopm to schedule an auto suspend */
+	usb_autopm_get_interface_no_resume(intf);
+	usb_autopm_put_interface_async(intf);
 	return rc;
 }
 
