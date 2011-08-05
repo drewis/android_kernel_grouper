@@ -167,6 +167,7 @@ static int br_set_mac_address(struct net_device *dev, void *p)
 	br->flags |= BR_SET_MAC_ADDR;
 	spin_unlock_bh(&br->lock);
 
+	call_netdevice_notifiers(NETDEV_CHANGEADDR, dev);
 	return 0;
 }
 
