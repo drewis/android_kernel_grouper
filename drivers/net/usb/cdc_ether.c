@@ -678,6 +678,11 @@ static int cdc_ether_resume(struct usb_interface *intf)
 		wake_lock(&info->wake_lock);
 	}
 #endif /* CONFIG_HAS_WAKELOCK */
+
+	/* Force autopm to schedule an auto suspend */
+	usb_autopm_get_interface_no_resume(intf);
+	usb_autopm_put_interface_async(intf);
+
 	return ret;
 }
 
