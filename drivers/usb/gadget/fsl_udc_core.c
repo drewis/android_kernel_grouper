@@ -1755,7 +1755,7 @@ static void dtd_complete_irq(struct fsl_udc *udc)
 	u32 bit_pos;
 	int i, ep_num, direction, bit_mask, status;
 	struct fsl_ep *curr_ep;
-	struct fsl_req *curr_req, *temp_req;
+	struct fsl_req *curr_req;
 
 	/* Clear the bits in the register */
 	bit_pos = fsl_readl(&dr_regs->endptcomplete);
@@ -1787,8 +1787,9 @@ static void dtd_complete_irq(struct fsl_udc *udc)
 		}
 
 		/* process the req queue until an uncomplete request */
-		list_for_each_entry_safe(curr_req, temp_req, &curr_ep->queue,
-				queue) {
+		while (!list_empty(&curr_ep->queue)) {
+			curr_req = list_first_entry(&curr_ep->queue,
+						struct fsl_req, queue);
 			status = process_ep_req(udc, i, curr_req);
 
 			VDBG("status of process_ep_req= %d, ep = %d",
