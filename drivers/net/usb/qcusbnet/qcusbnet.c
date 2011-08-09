@@ -422,7 +422,7 @@ static int qcnet_worker(void *arg)
 		spin_unlock_irqrestore(&worker->active_lock, activeflags);
 
 		device_lock(&iface->dev);
-		if (iface->dev.power.in_suspend) {
+		if (iface->dev.power.is_suspended) {
 			usb_autopm_get_interface_no_resume(iface);
 			status = 0;
 		} else {

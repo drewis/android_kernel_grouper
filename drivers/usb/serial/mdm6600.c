@@ -137,7 +137,7 @@ static void mdm6600_wake_work(struct work_struct *work)
 
 	device_lock(&intf->dev);
 
-	if (intf->dev.power.in_suspend) {
+	if (intf->dev.power.is_suspended) {
 		device_unlock(&intf->dev);
 		return;
 	}
