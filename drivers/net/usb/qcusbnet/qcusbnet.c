@@ -186,6 +186,10 @@ static int qc_resume(struct usb_interface *iface)
 
 		if (dev->worker.thread)
 			wake_up_process(dev->worker.thread);
+
+		/* Force autopm to schedule an auto suspend */
+		usb_autopm_get_interface_no_resume(iface);
+		usb_autopm_put_interface_async(iface);
 	} else {
 		DBG("nothing to resume\n");
 		return 0;
