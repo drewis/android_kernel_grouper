@@ -492,6 +492,7 @@ static struct tegra_sdhci_platform_data stingray_sdhci_platform_data4 = {
 	.cd_gpio = -1,
 	.wp_gpio = -1,
 	.power_gpio = -1,
+	.is_8bit = 1,
 };
 
 static struct tegra_i2c_platform_data stingray_i2c1_platform_data = {
