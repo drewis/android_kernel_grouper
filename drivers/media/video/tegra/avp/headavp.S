@@ -45,6 +45,14 @@
 #define TRANSLATE_OPT (TRANSLATE_DATA | TRANSLATE_CODE | TRANSLATE_WR | \
 		       TRANSLATE_RD | TRANSLATE_HIT)
 
+/*
+ * This looks like kernel code, but it's not.  It is executed by the armv5
+ * processor in the AVP.  Since the data in _tegra_avp_boot_stub_data needs
+ * to be modified before the AVP executes _tegra_avp_boot_stub, put both
+ * the code and the data into the .data section.  The code is never executed
+ * the kernel, so it won't run afoul of any future .data NX changes.
+ */
+        .data
 ENTRY(_tegra_avp_boot_stub)
 	adr	r4, _tegra_avp_boot_stub_data
 	ldmia	r4, {r0-r3}
@@ -56,11 +64,11 @@ ENTRY(_tegra_avp_boot_stub)
 	str	r3, [r0, #PTE0_TRANSLATE]
 	bx	r1
 	b	.
-ENDPROC(_tegra_avp_boot_stub)
+END(_tegra_avp_boot_stub)
 	.type	_tegra_avp_boot_stub_data, %object
 ENTRY(_tegra_avp_boot_stub_data)
 	.long	AVP_MMU_TLB_BASE
 	.long	0xdeadbeef
 	.long	PTE0_DEFAULT
 	.long	0xdeadd00d
-	.size	_tegra_avp_boot_stub_data, . - _tegra_avp_boot_stub_data
+END(_tegra_avp_boot_stub_data)
