@@ -98,6 +98,8 @@ static void ts27010_ldisc_close(struct tty_struct *tty)
 	if (!ts)
 		return;
 
+	cancel_work_sync(&ts->recv_work);
+
 	tty->disc_data = NULL;
 	/* TODO: goes away with clean tty interface */
 	ts27010mux_tty = NULL;
