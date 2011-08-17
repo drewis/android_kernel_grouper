@@ -105,29 +105,29 @@ EXPORT_SYMBOL(oob_wake_unregister);
 /* wake up the usb bus if needed */
 static void wake_interface(struct usb_interface *intf)
 {
+	struct device *dev = &intf->dev;
 	pr_debug("%s: called\n", __func__);
 
+	device_lock(dev);
+
 	/* Don't proceed during device state transitions. */
-	/* FIXME: Is this still needed:
-	if (intf->dev.power.status < DPM_OFF &&
-	    intf->dev.power.status != DPM_ON) {
-		if (!wait_for_completion_timeout(&intf->dev.power.completion,
-		                                                          HZ))
-			pr_err("%s: wait timed out", __func__);
+	if (dev->power.is_prepared) {
+		device_unlock(dev);
+		if (!wait_for_completion_timeout(&dev->power.completion, HZ))
+			dev_err(dev, "%s: wait timed out", __func__);
+		device_lock(dev);
 	}
-	*/
 
-	device_lock(&intf->dev);
 
-	if (intf->dev.power.is_suspended) {
-		device_unlock(&intf->dev);
+	if (dev->power.is_suspended) {
+		device_unlock(dev);
 		return;
 	}
 
 	if (usb_autopm_get_interface(intf) == 0)
 		usb_autopm_put_interface_async(intf);
 
-	device_unlock(&intf->dev);
+	device_unlock(dev);
 }
 
 /* Wake the interface for the associated device (vendor/product) */

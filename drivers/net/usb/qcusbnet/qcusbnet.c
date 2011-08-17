@@ -47,6 +47,7 @@ static void free_dev(struct kref *ref)
 	struct qcusbnet *dev = container_of(ref, struct qcusbnet, refcount);
 #ifdef CONFIG_HAS_WAKELOCK
 	wake_lock_destroy(&dev->wake_lock);
+	wake_lock_destroy(&dev->thread_lock);
 #endif /* CONFIG_HAS_WAKELOCK */
 	list_del(&dev->node);
 	kfree(dev);
@@ -367,6 +368,7 @@ static int qcnet_worker(void *arg)
 	struct usb_device *usbdev;
 	struct usb_interface *iface;
 	struct worker *worker = arg;
+	struct qcusbnet *dev;
 	if (!worker) {
 		ERR("passed null pointer\n");
 		return -EINVAL;
@@ -374,9 +376,11 @@ static int qcnet_worker(void *arg)
 
 	iface = worker->iface;
 	usbdev = interface_to_usbdev(iface);
+	dev = container_of(worker, struct qcusbnet, worker);
 
 	DBG("traffic thread started\n");
 
+	QC_WAKE_LOCK(&dev->thread_lock);
 	while (1) {
 		if (kthread_should_stop()) {
 			qcnet_killactive(worker);
@@ -405,7 +409,9 @@ static int qcnet_worker(void *arg)
 
 		if (worker->active) {
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
+			QC_WAKE_UNLOCK(&dev->thread_lock);
 			schedule();
+			QC_WAKE_LOCK(&dev->thread_lock);
 			continue;
 		}
 
@@ -413,7 +419,9 @@ static int qcnet_worker(void *arg)
 		if (list_empty(&worker->urbs)) {
 			spin_unlock_irqrestore(&worker->urbs_lock, listflags);
 			spin_unlock_irqrestore(&worker->active_lock, activeflags);
+			QC_WAKE_UNLOCK(&dev->thread_lock);
 			schedule();
+			QC_WAKE_LOCK(&dev->thread_lock);
 			continue;
 		}
 
@@ -427,9 +435,19 @@ static int qcnet_worker(void *arg)
 		spin_unlock_irqrestore(&worker->active_lock, activeflags);
 
 		device_lock(&iface->dev);
-		if (iface->dev.power.is_suspended) {
+		status = 0;
+		if (iface->dev.power.is_prepared) {
+			device_unlock(&iface->dev);
+			if (!wait_for_completion_timeout(&iface->dev.power.completion,HZ))
+				status = -ETIMEDOUT;
+			device_lock(&iface->dev);
+		}
+		if (iface->dev.power.is_suspended && !status) {
 			usb_autopm_get_interface_no_resume(iface);
-			status = 0;
+			device_unlock(&iface->dev);
+			if (!wait_for_completion_timeout(&iface->dev.power.completion,HZ))
+				status = -ETIMEDOUT;
+			device_lock(&iface->dev);
 		} else {
 			status = usb_autopm_get_interface(iface);
 		}
@@ -471,6 +489,7 @@ static int qcnet_worker(void *arg)
 
                 log_errors = 1;
 	}
+	QC_WAKE_UNLOCK(&dev->thread_lock);
 
 	DBG("traffic thread exiting\n");
 	worker->thread = NULL;
@@ -708,6 +727,8 @@ int qcnet_probe(struct usb_interface *iface, const struct usb_device_id *vidpids
 #ifdef CONFIG_HAS_WAKELOCK
 	wake_lock_init(&dev->wake_lock, WAKE_LOCK_SUSPEND,
 		iface->dev.driver->name);
+	wake_lock_init(&dev->thread_lock, WAKE_LOCK_SUSPEND,
+		"qc_thread_lock");
 #endif /* CONFIG_HAS_WAKELOCK */
 
 

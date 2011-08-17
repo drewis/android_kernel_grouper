@@ -102,6 +102,7 @@ struct qcusbnet {
 	struct worker worker;
 #ifdef CONFIG_HAS_WAKELOCK
 	struct wake_lock wake_lock;
+	struct wake_lock thread_lock;
 #endif /* CONFIG_HAS_WAKELOCK */
 };
 

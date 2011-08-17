@@ -122,23 +122,22 @@ static void mdm6600_wake_work(struct work_struct *work)
 	struct mdm6600_port *modem = container_of(work, struct mdm6600_port,
 		wake_work);
 	struct usb_interface *intf = modem->serial->interface;
+	struct device *dev = &intf->dev;
 
 	dbg("%s: port %d", __func__, modem->number);
 
+	device_lock(dev);
+
 	/* Don't proceed during device state transitions. */
-	/* FIXME: Is this still needed:
-	if (intf->dev.power.status < DPM_OFF &&
-	    intf->dev.power.status != DPM_ON) {
-		if (!wait_for_completion_timeout(&intf->dev.power.completion,
-		                                                          HZ))
-			pr_err("%s: wait timed out", __func__);
+	if (dev->power.is_prepared) {
+		device_unlock(dev);
+		if (!wait_for_completion_timeout(&dev->power.completion, HZ))
+			dev_err(dev, "%s: wait timed out\n", __func__);
+		device_lock(dev);
 	}
-	*/
 
-	device_lock(&intf->dev);
-
-	if (intf->dev.power.is_suspended) {
-		device_unlock(&intf->dev);
+	if (dev->power.is_suspended) {
+		device_unlock(dev);
 		return;
 	}
 
@@ -147,7 +146,7 @@ static void mdm6600_wake_work(struct work_struct *work)
 		/* set usage count back to 0 */
 		usb_autopm_put_interface_async(intf);
 
-	device_unlock(&intf->dev);
+	device_unlock(dev);
 }
 
 static irqreturn_t mdm6600_irq_handler(int irq, void *ptr)
@@ -848,15 +847,8 @@ static int mdm6600_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	struct usb_serial *serial = usb_get_intfdata(intf);
 	struct mdm6600_port *modem = usb_get_serial_data(serial);
-	unsigned long threshold_time;
 
 	dbg("%s: event=%d", __func__, message.event);
-
-	threshold_time = serial->dev->dev.power.last_busy +
-				msecs_to_jiffies(MODEM_AUTOSUSPEND_DELAY_MSECS);
-
-	if (time_before(jiffies, threshold_time))
-		return -EBUSY;
 
 	if (modem->number == MODEM_INTERFACE_NUM) {
 		spin_lock_irq(&mdm6600_wake_irq_lock);
