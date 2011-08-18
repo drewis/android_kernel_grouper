@@ -33,6 +33,7 @@ static DEFINE_MUTEX(qcusbnet_lock);
 int qcusbnet_debug;
 static struct class *devclass;
 
+#define QC_AUTOSUSPEND_DELAY 1000
 #ifdef CONFIG_HAS_WAKELOCK
 #define QC_WAKE_LOCK wake_lock
 #define QC_WAKE_UNLOCK(X) wake_lock_timeout(X, HZ/10)
@@ -170,6 +171,9 @@ static int qc_resume(struct usb_interface *iface)
 		QC_WAKE_LOCK(&dev->wake_lock);
 		qc_cleardown(dev, DOWN_DRIVER_SUSPENDED);
 		netif_start_queue(usbnet->net);
+		usb_autopm_schedule_autosuspend(iface,
+				msecs_to_jiffies(QC_AUTOSUSPEND_DELAY));
+
 		ret = usbnet_resume(iface);
 		if (ret) {
 			ERR("usbnet_resume error %d\n", ret);
@@ -258,7 +262,8 @@ static int xoom_qcnet_bind(struct usbnet *usbnet, struct usb_interface *iface)
 	if (!status) {
 		usbnet->rx_urb_size = XOOM_DOWNLINK_MTU +
 					usbnet->net->hard_header_len;
-		pm_runtime_set_autosuspend_delay(&usbnet->udev->dev, 1000);
+		pm_runtime_set_autosuspend_delay(&usbnet->udev->dev,
+							QC_AUTOSUSPEND_DELAY);
 		pm_runtime_set_autosuspend_delay(&usbnet->udev->parent->dev, 0);
 	}
 

@@ -903,6 +903,8 @@ static int mdm6600_resume(struct usb_interface *intf)
 
 		dbg("%s: submit urbs", __func__);
 		wake_lock(&modem->wakelock);
+		usb_autopm_schedule_autosuspend(intf,
+			msecs_to_jiffies(MODEM_AUTOSUSPEND_DELAY_MSECS));
 		mdm6600_submit_urbs(modem);
 
 		while ((u = usb_get_from_anchor(&modem->write.delayed))) {

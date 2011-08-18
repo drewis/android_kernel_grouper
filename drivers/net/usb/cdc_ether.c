@@ -496,6 +496,7 @@ static void wrigley_cdc_unbind(struct usbnet *dev, struct usb_interface *intf)
 }
 
 #define WRIGLEY_DOWNLINK_MTU	1500
+#define WRIGLEY_AUTOSUSPEND_DELAY	1000
 static int wrigley_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 {
 	int status = usbnet_cdc_bind(dev, intf);
@@ -507,7 +508,8 @@ static int wrigley_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 		usb_enable_autosuspend(interface_to_usbdev(intf));
 		oob_wake_register(intf);
 
-		pm_runtime_set_autosuspend_delay(&dev->udev->dev, 1000);
+		pm_runtime_set_autosuspend_delay(&dev->udev->dev,
+						WRIGLEY_AUTOSUSPEND_DELAY);
 		pm_runtime_set_autosuspend_delay(dev->udev->dev.parent, 0);
 	}
 	return status;
@@ -696,6 +698,10 @@ static int cdc_ether_resume(struct usb_interface *intf)
 		wake_lock(&info->wake_lock);
 	}
 #endif /* CONFIG_HAS_WAKELOCK */
+#ifdef CONFIG_USB_OOBWAKE
+	usb_autopm_schedule_autosuspend(intf,
+			msecs_to_jiffies(WRIGLEY_AUTOSUSPEND_DELAY));
+#endif
 	return ret;
 }
 
