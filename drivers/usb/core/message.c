@@ -1824,6 +1824,7 @@ free_interfaces:
 		intf->dev.groups = usb_interface_groups;
 		intf->dev.dma_mask = dev->dev.dma_mask;
 		INIT_WORK(&intf->reset_ws, __usb_queue_reset_device);
+		INIT_DELAYED_WORK(&intf->autopm_ws, usb_autosuspend_work);
 		intf->minor = -1;
 		device_initialize(&intf->dev);
 		pm_runtime_no_callbacks(&intf->dev);

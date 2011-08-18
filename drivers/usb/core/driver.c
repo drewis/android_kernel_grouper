@@ -331,6 +331,7 @@ static int usb_probe_interface(struct device *dev)
 	intf->needs_remote_wakeup = 0;
 	intf->condition = USB_INTERFACE_UNBOUND;
 	usb_cancel_queued_reset(intf);
+	cancel_delayed_work_sync(&intf->autopm_ws);
 
 	/* Unbound interfaces are always runtime-PM-disabled and -suspended */
 	if (driver->supports_autosuspend)
@@ -363,6 +364,7 @@ static int usb_unbind_interface(struct device *dev)
 
 	driver->disconnect(intf);
 	usb_cancel_queued_reset(intf);
+	cancel_delayed_work_sync(&intf->autopm_ws);
 
 	/* Reset other interface state.
 	 * We cannot do a Set-Interface if the device is suspended or
@@ -1622,6 +1624,20 @@ void usb_autopm_get_interface_no_resume(struct usb_interface *intf)
 }
 EXPORT_SYMBOL_GPL(usb_autopm_get_interface_no_resume);
 
+/**
+ * usb_autopm_schedule_autosuspend - queue an autosuspend request
+ * @intf: the usb_interface whose usb device should be suspended
+ * @delay: number of jiffies to wait before sending the request
+ *		or 0 for immediate execution
+ *
+ * This routine can run in atomic context.
+ */
+void usb_autopm_schedule_autosuspend(struct usb_interface *intf, int delay)
+{
+	schedule_delayed_work(&intf->autopm_ws, delay);
+}
+EXPORT_SYMBOL_GPL(usb_autopm_schedule_autosuspend);
+
 /* Internal routine to check whether we may autosuspend a device. */
 static int autosuspend_check(struct usb_device *udev)
 {
@@ -1667,6 +1683,15 @@ static int autosuspend_check(struct usb_device *udev)
 	}
 	udev->do_remote_wakeup = w;
 	return 0;
+}
+
+void usb_autosuspend_work(struct work_struct *ws)
+{
+	struct usb_interface	*intf =
+		container_of(ws, struct usb_interface, autopm_ws.work);
+	struct usb_device *udev = interface_to_usbdev(intf);
+
+	pm_request_autosuspend(&udev->dev);
 }
 
 int usb_runtime_suspend(struct device *dev)
