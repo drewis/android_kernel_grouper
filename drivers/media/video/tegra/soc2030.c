@@ -24,10 +24,23 @@
 
 struct soc2030_info {
 	int mode;
+	int current_ev;
+	bool ae_lock_inhibit;
+	bool awb_lock_inhibit;
+	bool valid_ae_lock_state;
+	bool valid_awb_lock_state;
 	struct mutex lock;
 	struct i2c_client *i2c_client;
 	struct soc2030_platform_data *pdata;
 };
+
+/* A few register definitions */
+
+#define REG_CONTEXT            0xa104
+#define REG_LINE_LENGTH_A      0x2721
+#define REG_LINE_LENGTH_B      0x2737
+#define REG_COARSE_INTEGRATION 0x3012
+#define REG_EV                 0x2222
 
 /* 10-30fps */
 #define INDEX_30FPS 4
@@ -39,6 +52,14 @@ struct soc2030_info {
 #define INDEX_12FPS 10
 #define INDEX_11FPS 11
 #define INDEX_10FPS 12
+
+/* AE dependent timing settings */
+
+/* Variables used in sequence write tables */
+static u16 vars[READ_REG_VAR4-READ_REG_VAR1 + 1];
+
+#define ISP_AE_STATE 0
+#define ISP_AWB_STATE 1
 
 /*
  * SetMode Sequence for 1600X1200/800X600 base settings.
@@ -225,8 +246,18 @@ static struct soc2030_regs mode_800x600[] = {
 	{WRITE_REG_DATA, 0x0990, INDEX_15FPS},
 	{WRITE_REG_DATA, 0x098C, 0xA20C},	/* AE_MAX_INDEX */
 	{WRITE_REG_DATA, 0x0990, INDEX_15FPS},	/* 15-30 FPS */
-	{WRITE_REG_DATA, 0x098C, 0xA115},	/* ISP off in cntx B */
-	{WRITE_REG_DATA, 0x0990, 0x0000},
+	{WRITE_REG_DATA, 0x098C, 0xA115},	/* cntx B isp/video */
+	{WRITE_REG_VAR1, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA11D},	/* cntx A isp AE */
+	{WRITE_REG_VAR2, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA117},	/* cntx A isp AE */
+	{WRITE_REG_VAR2, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA129},	/* cntx A isp AE */
+	{WRITE_REG_VAR2, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA11F},	/* cntx A isp AWB */
+	{WRITE_REG_VAR3, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA120},	/* cntx A isp HG */
+	{WRITE_REG_VAR4, 0x0990, 0x0000},	/* based on lock state */
 	{WRITE_REG_DATA, 0x098C, 0xA103},	/* Context A preview */
 	{WRITE_REG_DATA, 0x0990, 0x0001},
 	{POLL_VAR_DATA, 0xa104, 0x0003},
@@ -244,8 +275,18 @@ static struct soc2030_regs mode_1600x1200[] = {
 	{WRITE_REG_DATA, 0x0990, INDEX_10FPS},
 	{WRITE_REG_DATA, 0x098C, 0xA20C},	/* AE_MAX_INDEX */
 	{WRITE_REG_DATA, 0x0990, INDEX_10FPS},	/* 10-15 fps */
-	{WRITE_REG_DATA, 0x098C, 0xA115},	/* ISP in Context B */
-	{WRITE_REG_DATA, 0x0990, 0x0072},
+	{WRITE_REG_DATA, 0x098C, 0xA115},	/* cntx B isp/video */
+	{WRITE_REG_VAR1, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA11D},	/* cntx A isp AE */
+	{WRITE_REG_VAR2, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA117},	/* cntx A isp AE */
+	{WRITE_REG_VAR2, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA129},	/* cntx A isp AE */
+	{WRITE_REG_VAR2, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA11F},	/* cntx A isp AWB */
+	{WRITE_REG_VAR3, 0x0990, 0x0000},	/* based on lock state */
+	{WRITE_REG_DATA, 0x098C, 0xA120},	/* cntx A isp HG */
+	{WRITE_REG_VAR4, 0x0990, 0x0000},	/* based on lock state */
 	{WRITE_REG_DATA, 0x098C, 0xA103},	/* Context B full */
 	{WRITE_REG_DATA, 0x0990, 0x0002},
 	{POLL_VAR_DATA, 0xa104, 0x0007},
@@ -329,8 +370,18 @@ static struct soc2030_regs mode_1280x720[] = {
 	{WRITE_REG_DATA, 0x0990, INDEX_15FPS},
 	{WRITE_REG_DATA, 0x098C, 0xA20C},	/* AE_MAX_INDEX */
 	{WRITE_REG_DATA, 0x0990, INDEX_15FPS},	/* 15-30 FPS */
-	{WRITE_REG_DATA, 0x098C, 0xA115},	/* ISP off in cntx B */
-	{WRITE_REG_DATA, 0x0990, 0x0000},
+	{WRITE_REG_DATA, 0x098C, 0xA115},	/* cntx B isp/video enabled */
+	{WRITE_REG_DATA, 0x0990, 0x0072},	/* AE/AWB/Video enabled */
+	{WRITE_REG_DATA, 0x098C, 0xA11D},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* enable */
+	{WRITE_REG_DATA, 0x098C, 0xA117},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* enable */
+	{WRITE_REG_DATA, 0x098C, 0xA129},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* enable */
+	{WRITE_REG_DATA, 0x098C, 0xA11F},	/* cntx A isp AWB */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* enable */
+	{WRITE_REG_DATA, 0x098C, 0xA120},	/* cntx A isp HG */
+	{WRITE_REG_VAR4, 0x0990, 0x0000},	/* based on lock state */
 	{WRITE_REG_DATA, 0x098C, 0xA103},	/* Context A preview */
 	{WRITE_REG_DATA, 0x0990, 0x0001},
 	{POLL_VAR_DATA, 0xa104, 0x0003},
@@ -756,6 +807,147 @@ static struct soc2030_regs EffectAquaSequence[] = {
 	{REG_TABLE_END, 0x0000, 0x0000}
 };
 
+static struct soc2030_regs exposureLockSequence[] = {
+	{WRITE_REG_DATA, 0x098c, 0xA102},
+	{WRITE_REG_BIT_L, 0x0990, 0x0009},	/*AE/HG OFF*/
+	{WRITE_REG_DATA, 0x098C, 0xA115},	/* cntx B isp/video */
+	{WRITE_REG_DATA, 0x0990, 0x0000},	/* Disable */
+	{WRITE_REG_DATA, 0x098C, 0xA11D},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0000},	/* Disable */
+	{WRITE_REG_DATA, 0x098C, 0xA117},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0000},	/* Disable */
+	{WRITE_REG_DATA, 0x098C, 0xA129},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0000},	/* Disable */
+	{WRITE_REG_DATA, 0x098C, 0xA120},	/* cntx A isp HG */
+	{WRITE_REG_DATA, 0x0990, 0x0000},	/* Disable */
+	{REG_TABLE_END, 0x0000, 0x0000}
+};
+
+static struct soc2030_regs exposureUnLockSequence[] = {
+	{WRITE_REG_DATA, 0x098c, 0xA102},
+	{WRITE_REG_BIT_H, 0x0990, 0x0009},	/*AE/HG ON*/
+	{WRITE_REG_DATA, 0x098C, 0xA115},	/* cntx B isp/video */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* Enable */
+	{WRITE_REG_DATA, 0x098C, 0xA11D},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* Enable */
+	{WRITE_REG_DATA, 0x098C, 0xA117},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* Enable */
+	{WRITE_REG_DATA, 0x098C, 0xA129},	/* cntx A isp AE */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* Enable */
+	{WRITE_REG_DATA, 0x098C, 0xA120},	/* Enable A isp HG */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* Disable */
+	{WRITE_REG_DATA, 0x098C, 0xa103},	/* Refresh Mode */
+	{WRITE_REG_DATA, 0x0990, 0x0006},
+	{POLL_VAR_DATA, 0xa103, 0x0000},
+	{WRITE_REG_DATA, 0x098C, 0xa103},	/* Refresh Seq */
+	{WRITE_REG_DATA, 0x0990, 0x0005},
+	{POLL_VAR_DATA, 0xa103, 0x0000},
+	{REG_TABLE_END, 0x0000, 0x0000}
+};
+
+static struct soc2030_regs awbLockSequence[] = {
+	{WRITE_REG_DATA, 0x098c, 0xA102},
+	{WRITE_REG_BIT_L, 0x0990, 0x0004},	/*AWB OFF*/
+	{WRITE_REG_DATA, 0x098C, 0xA11F},	/* cntx A isp AWB */
+	{WRITE_REG_DATA, 0x0990, 0x0000},	/* Disable */
+	{REG_TABLE_END, 0x0000, 0x0000}
+};
+
+static struct soc2030_regs awbUnLockSequence[] = {
+	{WRITE_REG_DATA, 0x098c, 0xA102},
+	{WRITE_REG_BIT_H, 0x0990, 0x0004},	/*AWB ON*/
+	{WRITE_REG_DATA, 0x098C, 0xA11F},	/* cntx A isp AWB */
+	{WRITE_REG_DATA, 0x0990, 0x0001},	/* Enable */
+	{WRITE_REG_DATA, 0x098C, 0xa103},	/* Refresh Mode */
+	{WRITE_REG_DATA, 0x0990, 0x0006},
+	{POLL_VAR_DATA, 0xa103, 0x0000},
+	{WRITE_REG_DATA, 0x098C, 0xa103},	/* Refresh Seq */
+	{WRITE_REG_DATA, 0x0990, 0x0005},
+	{POLL_VAR_DATA, 0xa103, 0x0000},
+	{REG_TABLE_END, 0x0000, 0x0000}
+};
+
+/*
+ * Current AE Lock State.
+ * The address values for the AE state.
+ * Data is stored in ae_lock_state[]
+ *
+ */
+static struct soc2030_regs ae_lock_state_sequence[] = {
+	{WRITE_REG_DATA, 0x302e, 0x0000},	/*blue gain*/
+	{WRITE_REG_DATA, 0x3028, 0x0000},	/*global gain*/
+	{WRITE_REG_DATA, 0x3030, 0x0000},	/*greenb gain*/
+	{WRITE_REG_DATA, 0x302a, 0x0000},	/*greenr gain*/
+	{WRITE_REG_DATA, 0x302c, 0x0000},	/*red gain*/
+	{WRITE_REG_DATA, 0x3058, 0x0000},	/*blue gain*/
+	{WRITE_REG_DATA, 0x3012, 0x0000},	/*coarse integration*/
+	{WRITE_REG_DATA, 0x3036, 0x0000},	/*blue digital gain*/
+	{WRITE_REG_DATA, 0x3038, 0x0000},	/*greenb digital gain*/
+	{WRITE_REG_DATA, 0x3032, 0x0000},	/*greenr digital gain*/
+	{WRITE_REG_DATA, 0x3034, 0x0000},	/*red digital gainb*/
+	{WRITE_REG_DATA, 0x3014, 0x0000},	/*fine integtration*/
+	{WRITE_REG_DATA, 0x3056, 0x0000},	/*green1 gain*/
+	{WRITE_REG_DATA, 0x305c, 0x0000},	/*greeen2 gain*/
+	{WRITE_REG_DATA, 0x305a, 0x0000},	/*red gain*/
+	{REG_TABLE_END, 0x0000, 0x0000}
+
+};
+
+static u16 ae_lock_state[sizeof(ae_lock_state_sequence)/
+					sizeof(struct soc2030_regs)];
+
+
+/*
+ * The address values for the AWB state.
+ * Data is stored in awb_lock_state[]
+ *
+ */
+static struct soc2030_regs awb_lock_state_sequence[] = {
+	{WRITE_REG_DATA, 0x326c, 0x0000},	/*ap2d params*/
+	{WRITE_REG_DATA, 0x32da, 0x0000},	/*blue digital gain*/
+	{WRITE_REG_DATA, 0x3280, 0x0000},	/*blue offset*/
+	{WRITE_REG_DATA, 0x32c4, 0x0000},	/*ccm 1_1*/
+	{WRITE_REG_DATA, 0x32c6, 0x0000},	/*ccm 3_4*/
+	{WRITE_REG_DATA, 0x32c8, 0x0000},	/*ccm 5_6*/
+	{WRITE_REG_DATA, 0x32ca, 0x0000},	/*ccm 7_8*/
+	{WRITE_REG_DATA, 0x32cc, 0x0000},	/*ccm 9*/
+	{WRITE_REG_DATA, 0x32c2, 0x0000},	/*ccm exp high*/
+	{WRITE_REG_DATA, 0x32c0, 0x0000},	/*ccm exp low*/
+	{WRITE_REG_DATA, 0x328e, 0x0000},	/*dm edge th*/
+	{WRITE_REG_DATA, 0x32d6, 0x0000},	/*green1 digital gain*/
+	{WRITE_REG_DATA, 0x327c, 0x0000},	/*green1 offset*/
+	{WRITE_REG_DATA, 0x32d8, 0x0000},	/*green2 digital gain*/
+	{WRITE_REG_DATA, 0x327e, 0x0000},	/*green2 offset*/
+	{WRITE_REG_DATA, 0x322c, 0x0000},	/*horz wt*/
+	{WRITE_REG_DATA, 0x32d4, 0x0000},	/*red digital gain*/
+	{WRITE_REG_DATA, 0x327a, 0x0000},	/*red offset*/
+	{WRITE_REG_DATA, 0x322e, 0x0000},	/*vert_wt*/
+	{WRITE_VAR_DATA, 0x2332, 0x0000},	/*ccm_0*/
+	{WRITE_VAR_DATA, 0x2334, 0x0000},	/*ccm_1*/
+	{WRITE_VAR_DATA, 0x2336, 0x0000},	/*ccm_2*/
+	{WRITE_VAR_DATA, 0x2338, 0x0000},	/*ccm_3*/
+	{WRITE_VAR_DATA, 0x233a, 0x0000},	/*ccm_4*/
+	{WRITE_VAR_DATA, 0x233c, 0x0000},	/*ccm_5*/
+	{WRITE_VAR_DATA, 0x233e, 0x0000},	/*ccm_6*/
+	{WRITE_VAR_DATA, 0x2340, 0x0000},	/*ccm_7*/
+	{WRITE_VAR_DATA, 0x2342, 0x0000},	/*ccm_8*/
+	{WRITE_VAR_DATA, 0x2344, 0x0000},	/*ccm_9*/
+	{WRITE_VAR_DATA, 0x2346, 0x0000},	/*ccm_10*/
+	{WRITE_VAR_DATA, 0xA34e, 0x0000},	/*gain r*/
+	{WRITE_VAR_DATA, 0xA34f, 0x0000},	/*gain g*/
+	{WRITE_VAR_DATA, 0xA350, 0x0000},	/*gain b*/
+	{WRITE_VAR_DATA, 0xA353, 0x0000},	/*ccm position*/
+	{WRITE_VAR_DATA, 0xA354, 0x0000},	/*awb saturation*/
+	{WRITE_VAR_DATA, 0xA355, 0x0000},	/*awb mode*/
+	{WRITE_VAR_DATA, 0xA356, 0x0000},	/*awb gain r buff*/
+	{WRITE_VAR_DATA, 0x2358, 0x0000},	/*adb gain b buff*/
+	{REG_TABLE_END, 0x0000, 0x0000}
+
+};
+
+static u16 awb_lock_state[sizeof(awb_lock_state_sequence)/
+					sizeof(struct soc2030_regs)];
+
 static struct soc2030_regs *effect_table[] = {
 	[EFFECT_NONE] = EffectNoneSequence,
 	[EFFECT_BW] = EffectBwSequence,
@@ -765,6 +957,8 @@ static struct soc2030_regs *effect_table[] = {
 	[EFFECT_SOLARIZE] = EffectSolarizeSequence,
 	[EFFECT_AQUA] = EffectAquaSequence,
 };
+
+static struct soc2030_lock lockBuff;
 
 static struct soc2030_mode modes[] = {
 	{800, 600, 30, mode_800x600},
@@ -925,7 +1119,6 @@ static int soc2030_poll_xdma_reg(struct i2c_client *client, u16 addr,
 {
 	int try, err;
 	u16 val;
-
 	for (try = 0; try < SOC2030_POLL_RETRIES; try++) {
 		err = soc2030_read_xdma_reg(client, addr, &val);
 		if (err)
@@ -937,8 +1130,8 @@ static int soc2030_poll_xdma_reg(struct i2c_client *client, u16 addr,
 		}
 		msleep(SOC2030_POLL_WAITMS);
 	}
-	pr_err("soc2030: xdma poll for %x == ([%x]=%x) failed\n", expected,
-	       addr, val);
+	pr_err("soc2030: xdma poll for %x == ([%x]=%x) failed %d times\n",
+		expected, addr, val, try);
 	return -EINVAL;
 }
 
@@ -1020,10 +1213,301 @@ static int soc2030_write_table(struct i2c_client *client,
 			msleep(next->val);
 			break;
 		}
+		case WRITE_REG_VAR1:
+		case WRITE_REG_VAR2:
+		case WRITE_REG_VAR3:
+		case WRITE_REG_VAR4:
+		{
+			if (next->op-WRITE_REG_VAR1 >= sizeof(vars)) {
+				pr_err("%s: invalid operation 0x%x\n",
+					__func__, next->op);
+				break;
+			}
+			err = soc2030_write_reg(client, next->addr,
+				vars[next->op-WRITE_REG_VAR1]);
+			if (err)
+				return err;
+			break;
+		}
+		case READ_REG_VAR1:
+		case READ_REG_VAR2:
+		case READ_REG_VAR3:
+		case READ_REG_VAR4:
+		{
+			if (next->op-READ_REG_VAR1 >= sizeof(vars)) {
+				pr_err("%s: invalid operation 0x%x\n",
+					__func__, next->op);
+				break;
+			}
+			err = soc2030_read_reg(client, next->addr,
+				&(vars[next->op-READ_REG_VAR1]));
+			if (err)
+				return err;
+			break;
+		}
 		default:
 			pr_err("%s: invalid operation 0x%x\n", __func__,
 				next->op);
 			return err;
+		}
+	}
+	return 0;
+}
+
+static int soc2030_conv_exp2ev0a(struct i2c_client *client,
+			       int curr_ev, u16 *exposure)
+{
+	u16 line_length_a;
+	u16 line_length_b;
+	u32 exp = *exposure;
+	u16 context;
+	int err = 0;
+
+
+	/* Get current sensor context */
+	err = soc2030_read_xdma_reg(client, REG_CONTEXT, &context);
+	if (err)
+		return err;
+
+	/* convert exposure to context "a" (preview, 3) timimg */
+	if (context == 7) {
+		/* context is "b" (capture, 7) */
+		/* so convert from "b" to "a" */
+		err = soc2030_read_xdma_reg(client, REG_LINE_LENGTH_A,
+					    &line_length_a);
+		if (err)
+			return err;
+		err = soc2030_read_xdma_reg(client, REG_LINE_LENGTH_B,
+					    &line_length_b);
+		if (err)
+			return err;
+		exp *= line_length_b;
+		exp /= line_length_a;
+		*exposure = exp;
+	}
+
+	/* convert exposure to EV0 setting */
+	if (curr_ev > 0)
+		*exposure >>= abs(curr_ev);
+	else if (curr_ev < 0)
+		*exposure <<= abs(curr_ev);
+
+
+	if (curr_ev != 0) {
+		pr_info("%s:EV0a exposure 0x%x(%d)\n", __func__, *exposure,
+			*exposure);
+	}
+
+	return err;
+}
+
+static int soc2030_save_isp_state(struct i2c_client *client,
+			       int curr_ev)
+{
+	int err = -EIO;
+	struct soc2030_regs *next;
+	int index;
+
+
+	for (next = ae_lock_state_sequence,
+		index = 0; next->op != REG_TABLE_END; next++, index++) {
+
+		if (!lockBuff.aelock)
+			break;
+
+		switch (next->op) {
+		case WRITE_REG_DATA:
+		{
+			err = soc2030_read_reg(client, next->addr,
+				&(ae_lock_state[index]));
+			if (err)
+				return err;
+			/* check for integration time register */
+			if (next->addr == REG_COARSE_INTEGRATION) {
+				/* Convert to EV0a */
+				err = soc2030_conv_exp2ev0a(client, curr_ev,
+					&(ae_lock_state[index]));
+				if (err)
+					return err;
+
+				pr_info("%s: save EV0a exposure 0x%x(%d)\n",
+					__func__, ae_lock_state[index],
+					ae_lock_state[index]);
+			}
+			break;
+		}
+		case WRITE_VAR_DATA:
+		{
+			err = soc2030_read_xdma_reg(client, next->addr,
+				&(ae_lock_state[index]));
+			if (err)
+				return err;
+			break;
+		}
+		}
+	}
+
+	for (next = awb_lock_state_sequence,
+			index = 0; next->op != REG_TABLE_END; next++, index++) {
+
+		if (!lockBuff.awblock)
+			break;
+
+		switch (next->op) {
+		case WRITE_REG_DATA:
+		{
+			err = soc2030_read_reg(client, next->addr,
+				&(awb_lock_state[index]));
+			if (err)
+				return err;
+			break;
+		}
+		case WRITE_VAR_DATA:
+		{
+			err = soc2030_read_xdma_reg(client, next->addr,
+				&(awb_lock_state[index]));
+			if (err)
+				return err;
+			break;
+		}
+		}
+	}
+
+	return 0;
+}
+
+
+static int soc2030_conv_exp2evxx(struct i2c_client *client,
+			       int curr_ev, u16 *exposure)
+{
+	u16 line_length_a;
+	u16 line_length_b;
+	u32 exp = *exposure;
+	u16 context;
+	int err = 0;
+
+
+	/* Get current sensor context */
+	err = soc2030_read_xdma_reg(client, REG_CONTEXT, &context);
+	if (err)
+		return err;
+
+	/* convert exposure for current EV setting */
+	if (curr_ev > 0)
+		exp <<= abs(curr_ev);
+	else if (curr_ev < 0)
+		exp >>= abs(curr_ev);
+
+	if (0 != curr_ev) {
+		pr_info("%s:EV%i%s exposure 0x%x(%d)\n",
+			__func__, curr_ev, (context == 7 ? "a" : "b"),
+			exp, exp);
+	}
+
+	/* convert exposure for current context timimg */
+	if (context == 7) {
+		err = soc2030_read_xdma_reg(client, REG_LINE_LENGTH_A,
+					    &line_length_a);
+		if (err)
+			return err;
+		err = soc2030_read_xdma_reg(client, REG_LINE_LENGTH_B,
+					    &line_length_b);
+		if (err)
+			return err;
+
+		exp *= line_length_a;
+		exp /= line_length_b;
+
+		pr_info("%s: CONVERTED context a (3) Exposure to context b \
+			(%d) %d(0x%x)\n", __func__, context, exp, exp);
+	}
+
+	*exposure = exp;
+
+	return err;
+}
+
+static int soc2030_restore_isp_state(struct i2c_client *client,
+			       int curr_ev)
+{
+	int err = -EIO;
+	struct soc2030_regs *next;
+	int index;
+	u16 context;
+
+	/* Get current sensor context */
+	err = soc2030_read_xdma_reg(client, 0xa104, &context);
+	if (err)
+		return err;
+
+	for (next = ae_lock_state_sequence,
+			index = 0; next->op != REG_TABLE_END; next++, index++) {
+		u16 write_data;
+
+		if (!lockBuff.aelock)
+			break;
+
+		write_data = ae_lock_state[index];
+		switch (next->op) {
+		case WRITE_REG_DATA:
+		{
+			/* check for integration time register */
+			if (next->addr == REG_COARSE_INTEGRATION) {
+				/* convert it */
+				err = soc2030_conv_exp2evxx(client, curr_ev,
+					&write_data);
+				if (err)
+					return err;
+
+
+				pr_info("%s: apply EV %d 0x%x(%d) 0x%x(%d)\n",
+					__func__, curr_ev, ae_lock_state[index],
+					ae_lock_state[index],
+					write_data, write_data);
+				err = soc2030_write_xdma_reg(client, REG_EV,
+					write_data);
+			}
+			err = soc2030_write_reg(client, next->addr,
+				write_data);
+
+			if (err)
+				return err;
+			break;
+		}
+		case WRITE_VAR_DATA:
+		{
+			err = soc2030_write_xdma_reg(client, next->addr,
+				write_data);
+			if (err)
+				return err;
+			break;
+		}
+		}
+	}
+
+	for (next = awb_lock_state_sequence,
+			index = 0; next->op != REG_TABLE_END; next++, index++) {
+
+		if (!lockBuff.awblock)
+			break;
+
+		switch (next->op) {
+		case WRITE_REG_DATA:
+		{
+			err = soc2030_write_reg(client, next->addr,
+				awb_lock_state[index]);
+			if (err)
+				return err;
+			break;
+		}
+		case WRITE_VAR_DATA:
+		{
+			err = soc2030_write_xdma_reg(client, next->addr,
+				awb_lock_state[index]);
+			if (err)
+				return err;
+			break;
+		}
 		}
 	}
 	return 0;
@@ -1108,10 +1592,28 @@ static int soc2030_set_mode(struct soc2030_info *info,
 			return err;
 	}
 
-	/* set context */
+	/* start with context B video and AWB/AE/FD/HG enabled */
+	vars[REG_VAR1] = 0x72;
+	vars[REG_VAR2] = 0x01;
+	vars[REG_VAR3] = 0x01;
+	vars[REG_VAR4] = 0x01;
+	if (lockBuff.aelock) {
+		/* Disable AE/HG in context A/B */
+		vars[REG_VAR1] ^= 0x10;
+		vars[REG_VAR2] = 0x00;
+		vars[REG_VAR4] = 0x00;
+	}
+	if (lockBuff.awblock) {
+		/* Disable AWB in context A/B  */
+		vars[REG_VAR1] ^= 0x20;
+		vars[REG_VAR3] = 0x00;
+	}
+
+	/* set context (uses vars[REG_VAR1-VAR4] to set ISP) */
 	err = soc2030_write_table(info->i2c_client, modes[sensor_mode].regset);
 	if (err)
 		return err;
+
 
 	err = soc2030_write_table(info->i2c_client, refresh_mode);
 	if (err)
@@ -1120,6 +1622,17 @@ static int soc2030_set_mode(struct soc2030_info *info,
 	err = soc2030_write_table(info->i2c_client, refresh_state);
 	if (err)
 		return err;
+
+
+
+
+	/* Re-write the isp state to correct for exposure timing */
+	if (lockBuff.aelock) {
+		err = soc2030_restore_isp_state(info->i2c_client,
+		info->current_ev);
+		if (err)
+			return err;
+	}
 
 	info->mode = sensor_mode;
 	return 0;
@@ -1152,6 +1665,106 @@ static int soc2030_get_status(struct soc2030_info *info, u16 *status)
 	return 0;
 }
 
+static int soc2030_lock_check(struct soc2030_info *info,
+			  bool aelocked, bool awblocked)
+{
+	int err = 0;
+	bool ael_changed = lockBuff.aelock ^ aelocked;
+	bool awbl_changed = lockBuff.awblock ^ awblocked;
+	/* Update lock state if newly requested */
+	if (info->ae_lock_inhibit && lockBuff.aelock && ael_changed) {
+		lockBuff.aelock = false;
+		lockBuff.aerelock = false;
+		pr_err("%s: Invalid AE lock, EV already running in AE mode\n",
+			__func__);
+	}
+
+	if (lockBuff.aelock && ael_changed) {
+		err = soc2030_write_table(info->i2c_client,
+					exposureLockSequence);
+		if (err)
+			return err;
+		if (lockBuff.aerelock &&
+				info->valid_ae_lock_state) {
+			err = soc2030_restore_isp_state(
+				info->i2c_client,
+				info->current_ev);
+			if (err)
+				return err;
+			pr_info("%s: AE Relocked\n", __func__);
+		} else {
+			if (lockBuff.aerelock) {
+				pr_info("%s: Invalid AE buffer state\n",
+					__func__);
+				pr_info("%s: AE Relock blocked\n", __func__);
+			}
+			/* save the AE lock state*/
+			if (!info->ae_lock_inhibit) {
+				err = soc2030_save_isp_state(
+					info->i2c_client,
+					info->current_ev);
+				if (err)
+					return err;
+				info->valid_ae_lock_state =
+					true;
+			}
+			pr_info("%s: AE Locked\n", __func__);
+		}
+	} else if (ael_changed) {
+		err = soc2030_write_table(info->i2c_client,
+				exposureUnLockSequence);
+		if (err)
+			return err;
+		pr_info("%s: AE Unlock\n", __func__);
+	}
+
+	if (info->awb_lock_inhibit && lockBuff.awblock && awbl_changed) {
+		lockBuff.awblock = false;
+		lockBuff.awbrelock = false;
+		pr_err("%s: Invalid AWB lock, Manual WB already running\n",
+			__func__);
+	}
+
+	if (lockBuff.awblock && awbl_changed) {
+		err = soc2030_write_table(info->i2c_client,
+				awbLockSequence);
+		if (err)
+			return err;
+		if (lockBuff.awbrelock &&
+				info->valid_awb_lock_state) {
+			err = soc2030_restore_isp_state(
+				info->i2c_client,
+				info->current_ev);
+			if (err)
+				return err;
+			pr_info("%s: AWB Relocked\n", __func__);
+		} else {
+			if (lockBuff.awbrelock) {
+				pr_info("%s: Invalid AWB buffer state\n",
+					__func__);
+				pr_info("%s: AWB Relock blocked\n", __func__);
+			}
+			/* save the AWB lock state*/
+			if (!info->awb_lock_inhibit) {
+				err = soc2030_save_isp_state(
+					info->i2c_client,
+					info->current_ev);
+				if (err)
+					return err;
+				info->valid_awb_lock_state =
+					true;
+			}
+			pr_info("%s: AWB Locked\n", __func__);
+		}
+	} else if (awbl_changed) {
+		err = soc2030_write_table(info->i2c_client,
+				awbUnLockSequence);
+		if (err)
+			return err;
+		pr_info("%s: AWB Unlock\n", __func__);
+	}
+	return err;
+}
 
 static long soc2030_ioctl(struct file *file,
 			  unsigned int cmd, unsigned long arg)
@@ -1200,6 +1813,40 @@ static long soc2030_ioctl(struct file *file,
 		}
 		err = soc2030_write_table(info->i2c_client, reg_sequence);
 		kfree(reg_sequence);
+		break;
+	}
+	case SOC2030_IOCTL_SET_LOCK:
+	{
+		bool aelocked = lockBuff.aelock;
+		bool awblocked = lockBuff.awblock;
+		bool previewactivated = lockBuff.previewactive;
+
+		if (copy_from_user(&lockBuff,
+				   (const void __user *)arg,
+				   sizeof(struct soc2030_lock))) {
+			pr_info("%s: Error copying soc2030_lock from user\n",
+				__func__);
+			err = -EFAULT;
+			break;
+		}
+
+		/* check if preview state changed */
+		if (lockBuff.previewactive ^ previewactivated) {
+			if (lockBuff.previewactive
+					&& !aelocked) {
+				info->valid_ae_lock_state = false;
+				pr_info("%s: Invalidate AE lock State",
+					__func__);
+			}
+			if (lockBuff.previewactive
+					&& !awblocked) {
+				info->valid_awb_lock_state = false;
+				pr_info("%s: Invalidate AWB lock State",
+					__func__);
+			}
+
+		}
+		err = soc2030_lock_check(info, aelocked, awblocked);
 		break;
 	}
 	case SOC2030_IOCTL_GET_STATUS:
@@ -1324,6 +1971,19 @@ static long soc2030_ioctl(struct file *file,
 		err = soc2030_write_table(info->i2c_client, refresh_state);
 		if (err)
 			pr_err("%s: Failed to update EV parameter\n", __func__);
+
+		/* disable relock if ev non-zero and not locked */
+		/* or poised for relock (valid state buffer) */
+		if (req_ev != 0) {
+			if (!lockBuff.aelock && !info->valid_ae_lock_state) {
+				pr_info("%s: AE lock Inhibit\n", __func__);
+				info->ae_lock_inhibit = true;
+			}
+		} else {
+				info->ae_lock_inhibit = false;
+		}
+		info->current_ev = req_ev;
+		pr_info("%s: change EV --- %d\n", __func__, req_ev);
 		break;
 	}
 
@@ -1341,7 +2001,17 @@ static struct soc2030_info *info;
 
 static int soc2030_open(struct inode *inode, struct file *file)
 {
+	lockBuff.awblock = 0;
+	lockBuff.aelock = 0;
+	lockBuff.awbrelock = 0;
+	lockBuff.aerelock = 0;
+	lockBuff.previewactive = 0;
 	info->mode = -1;
+	info->current_ev = 0;
+	info->ae_lock_inhibit = false;
+	info->awb_lock_inhibit = false;
+	info->valid_ae_lock_state = false;
+	info->valid_awb_lock_state = false;
 	file->private_data = info;
 	if (info->pdata && info->pdata->power_on)
 		info->pdata->power_on();
