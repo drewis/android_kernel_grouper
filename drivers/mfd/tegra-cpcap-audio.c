@@ -482,15 +482,6 @@ static void cpcap_audio_callback(int status)
 					CPCAP_AUDIO_IN_HEADSET)
 			tegra_setup_audio_in_headset_on();
 	}
-	if (status == 0) {
-		if (pdata->state->stdac_primary_speaker ==
-					CPCAP_AUDIO_OUT_STEREO_HEADSET)
-			tegra_setup_audio_output_off();
-		if (pdata->state->microphone ==
-					CPCAP_AUDIO_IN_HEADSET)
-			tegra_setup_audio_in_mute();
-	}
-
 	mutex_unlock(&cpcap_lock);
 }
 
