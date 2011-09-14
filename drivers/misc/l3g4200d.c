@@ -533,21 +533,11 @@ static int l3g4200d_input_init(struct l3g4200d_data *gyro)
 {
 	int err;
 
-	err = request_threaded_irq(gyro->client->irq, NULL,
-			 gyro_irq_thread, IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
-			 L3G4200D_NAME, gyro);
-	if (err != 0) {
-		pr_err("%s: irq request failed: %d\n", __func__, err);
-		err = -ENODEV;
-		goto err0;
-	}
-	disable_irq(gyro->client->irq);
-
 	gyro->input_dev = input_allocate_device();
 	if (!gyro->input_dev) {
 		err = -ENOMEM;
 		dev_err(&gyro->client->dev, "input device allocate failed\n");
-		goto err1;
+		goto err0;
 	}
 
 	input_set_drvdata(gyro->input_dev, gyro);
@@ -557,6 +547,17 @@ static int l3g4200d_input_init(struct l3g4200d_data *gyro)
 	input_set_capability(gyro->input_dev, EV_REL, REL_RZ);
 
 	gyro->input_dev->name = "gyroscope";
+
+	err = request_threaded_irq(gyro->client->irq, NULL,
+			 gyro_irq_thread, IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
+			 L3G4200D_NAME, gyro);
+	if (err != 0) {
+		pr_err("%s: irq request failed: %d\n", __func__, err);
+		err = -ENODEV;
+		goto err1;
+	}
+	disable_irq(gyro->client->irq);
+
 
 	err = input_register_device(gyro->input_dev);
 	if (err) {
@@ -569,9 +570,9 @@ static int l3g4200d_input_init(struct l3g4200d_data *gyro)
 	return 0;
 
 err2:
-	input_free_device(gyro->input_dev);
-err1:
 	free_irq(gyro->client->irq, gyro);
+err1:
+	input_free_device(gyro->input_dev);
 err0:
 	return err;
 }
