@@ -30,6 +30,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/gpio.h>
+#include <linux/pm.h>
 
 #include <linux/l3g4200d.h>
 
@@ -674,8 +675,10 @@ static int __devexit l3g4200d_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int l3g4200d_resume(struct i2c_client *client)
+#ifdef CONFIG_PM_SLEEP
+static int l3g4200d_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct l3g4200d_data *gyro = i2c_get_clientdata(client);
 
 	if (atomic_read(&gyro->enabled)) {
@@ -686,8 +689,9 @@ static int l3g4200d_resume(struct i2c_client *client)
 	return 0;
 }
 
-static int l3g4200d_suspend(struct i2c_client *client, pm_message_t mesg)
+static int l3g4200d_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct l3g4200d_data *gyro = i2c_get_clientdata(client);
 
 	if (atomic_read(&gyro->enabled)) {
@@ -696,6 +700,12 @@ static int l3g4200d_suspend(struct i2c_client *client, pm_message_t mesg)
 	}
 	return 0;
 }
+#else
+#define l3g4200d_suspend NULL
+#define l3g4200d_resume NULL
+#endif
+
+static SIMPLE_DEV_PM_OPS(l3g4200d_pm, l3g4200d_suspend, l3g4200d_resume);
 
 static const struct i2c_device_id l3g4200d_id[] = {
 	{L3G4200D_NAME, 0},
@@ -707,11 +717,10 @@ MODULE_DEVICE_TABLE(i2c, l3g4200d_id);
 static struct i2c_driver l3g4200d_driver = {
 	.driver = {
 		   .name = L3G4200D_NAME,
+		   .pm = &l3g4200d_pm,
 		   },
 	.probe = l3g4200d_probe,
 	.remove = __devexit_p(l3g4200d_remove),
-	.resume = l3g4200d_resume,
-	.suspend = l3g4200d_suspend,
 	.id_table = l3g4200d_id,
 };
 
