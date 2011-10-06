@@ -30,6 +30,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
+#include <linux/pm.h>
 
 #include <linux/moto_bmp085.h>
 
@@ -855,8 +856,10 @@ static int __devexit bmp085_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int bmp085_resume(struct i2c_client *client)
+#ifdef CONFIG_PM_SLEEP
+static int bmp085_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct bmp085_data *barom = i2c_get_clientdata(client);
 
 	if (barom->on_before_suspend)
@@ -864,13 +867,20 @@ static int bmp085_resume(struct i2c_client *client)
 	return 0;
 }
 
-static int bmp085_suspend(struct i2c_client *client, pm_message_t mesg)
+static int bmp085_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct bmp085_data *barom = i2c_get_clientdata(client);
 
 	barom->on_before_suspend = atomic_read(&barom->enabled);
 	return bmp085_disable(barom);
 }
+#else
+#define bmp085_suspend NULL
+#define bmp085_resume NULL
+#endif
+
+static SIMPLE_DEV_PM_OPS(bmp085_pm, bmp085_suspend, bmp085_resume);
 
 static const struct i2c_device_id bmp085_id[] = {
 	{BMP085_NAME, 0},
@@ -882,11 +892,10 @@ MODULE_DEVICE_TABLE(i2c, bmp085_id);
 static struct i2c_driver bmp085_driver = {
 	.driver = {
 		   .name = BMP085_NAME,
+		   .pm = &bmp085_pm,
 		   },
 	.probe = bmp085_probe,
 	.remove = __devexit_p(bmp085_remove),
-	.resume = bmp085_resume,
-	.suspend = bmp085_suspend,
 	.id_table = bmp085_id,
 };
 
