@@ -30,6 +30,7 @@
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
+#include <linux/pm.h>
 
 #include <linux/kxtf9.h>
 
@@ -1249,9 +1250,11 @@ static int __devexit kxtf9_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int kxtf9_resume(struct i2c_client *client)
+#ifdef CONFIG_PM_SLEEP
+static int kxtf9_resume(struct device *dev)
 {
 	int err;
+	struct i2c_client *client = to_i2c_client(dev);
 	struct kxtf9_data *tf9 = i2c_get_clientdata(client);
 	if(!tf9->enabled_b4_suspend)
 		return 0;
@@ -1263,12 +1266,19 @@ static int kxtf9_resume(struct i2c_client *client)
 	return err;
 }
 
-static int kxtf9_suspend(struct i2c_client *client, pm_message_t mesg)
+static int kxtf9_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct kxtf9_data *tf9 = i2c_get_clientdata(client);
 	tf9->enabled_b4_suspend = atomic_read(&tf9->enabled);
 	return kxtf9_disable(tf9);
 }
+#else
+#define kxtf9_suspend NULL
+#define kxtf9_resume NULL
+#endif
+
+static SIMPLE_DEV_PM_OPS(kxtf9_pm, kxtf9_suspend, kxtf9_resume);
 
 static const struct i2c_device_id kxtf9_id[] = {
 	{NAME, 0},
@@ -1280,11 +1290,10 @@ MODULE_DEVICE_TABLE(i2c, kxtf9_id);
 static struct i2c_driver kxtf9_driver = {
 	.driver = {
 		   .name = NAME,
+		   .pm = &kxtf9_pm,
 		   },
 	.probe = kxtf9_probe,
 	.remove = __devexit_p(kxtf9_remove),
-	.resume = kxtf9_resume,
-	.suspend = kxtf9_suspend,
 	.id_table = kxtf9_id,
 };
 
