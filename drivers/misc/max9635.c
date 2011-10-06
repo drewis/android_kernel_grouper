@@ -31,6 +31,7 @@
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
+#include <linux/pm.h>
 
 #define MAX9635_ALLOWED_R_BYTES 1
 #define MAX9635_ALLOWED_W_BYTES 2
@@ -571,11 +572,13 @@ static int max9635_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int max9635_suspend(struct i2c_client *client, pm_message_t mesg)
+#ifdef CONFIG_PM_SLEEP
+static int max9635_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct max9635_data *als_data = i2c_get_clientdata(client);
 
-	if (max9635_debug)
+	if (max9635_debug & 2)
 		pr_info("%s: Suspending\n", __func__);
 
 	max9635_irq_enable(als_data, 0);
@@ -584,17 +587,24 @@ static int max9635_suspend(struct i2c_client *client, pm_message_t mesg)
 	return 0;
 }
 
-static int max9635_resume(struct i2c_client *client)
+static int max9635_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct max9635_data *als_data = i2c_get_clientdata(client);
 
-	if (max9635_debug)
+	if (max9635_debug & 2)
 		pr_info("%s: Resuming\n", __func__);
 
 	max9635_irq_enable(als_data, 1);
 
 	return 0;
 }
+#else
+#define max9635_suspend NULL
+#define max9635_resume NULL
+#endif
+
+static SIMPLE_DEV_PM_OPS(max9635_pm, max9635_suspend, max9635_resume);
 
 static const struct i2c_device_id max9635_id[] = {
 	{MAX9635_NAME, 0},
@@ -604,12 +614,11 @@ static const struct i2c_device_id max9635_id[] = {
 static struct i2c_driver max9635_i2c_driver = {
 	.probe = max9635_probe,
 	.remove = max9635_remove,
-	.suspend = max9635_suspend,
-	.resume = max9635_resume,
 	.id_table = max9635_id,
 	.driver = {
 	   .name = MAX9635_NAME,
 	   .owner = THIS_MODULE,
+	   .pm = &max9635_pm,
 	},
 };
 
