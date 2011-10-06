@@ -27,6 +27,7 @@
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
+#include <linux/pm.h>
 
 #include <linux/cap_prox.h>
 
@@ -153,7 +154,7 @@ static int cap_prox_read(struct cap_prox_data *cp, void *buf, int buf_sz)
 
 static void cap_prox_calibrate(struct cap_prox_data *cp) {
 	cap_prox_write(cp, &cp->pdata->plat_cap_prox_cfg.calibrate,1);
-	if (cp_dbg)
+	if (cp_dbg & 0x01)
 		pr_info("%s: Send Calibrate 0x%x\n", __func__,
 			 cp->pdata->plat_cap_prox_cfg.calibrate);
 }
@@ -209,7 +210,7 @@ static int cap_prox_read_data(struct cap_prox_data *cp)
 	key1_key2_signal_drift = abs(msg->signal1 - msg->signal2);
 	key3_key4_signal_drift = abs(msg->signal3 - msg->signal4);
 
-	if (cp_dbg) {
+	if (cp_dbg & 0x02) {
 		pr_info("%s: Key1 ref drift %d \n", __func__, key1_ref_drift);
 		pr_info("%s: key3 ref drift %d \n", __func__, key3_ref_drift);
 		pr_info("%s: Key1 Key3 ref drift diff %d \n\n",
@@ -317,7 +318,7 @@ static int cap_prox_read_data(struct cap_prox_data *cp)
 			msg->status = CP_STATUS_NUM_KEYS_ENABLED;
 		break;
 	default:
-		if (cp_dbg) {
+		if (cp_dbg & 0x02) {
 			pr_info("%s: Cap-prox message 0x%x\n", __func__,
 				msg->status);
 		}
@@ -351,7 +352,7 @@ static void cap_prox_irq_work_func(struct work_struct *work)
 	cancel_delayed_work_sync(&cp->input_work);
 	ret = cap_prox_read(cp, buf, 2);
 
-	if (cp_dbg)
+	if (cp_dbg & 0x08)
 		pr_info("%s: Cap-Prox Status: [0x%x][0x%x] \n",
 			 __func__, buf[0], buf[1]);
 
@@ -474,8 +475,10 @@ static int __devexit cap_prox_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int cap_prox_suspend(struct i2c_client *client, pm_message_t mesg)
+#ifdef CONFIG_PM_SLEEP
+static int cap_prox_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct cap_prox_data *cp = i2c_get_clientdata(client);
 
 	if (cp_dbg & 0x4)
@@ -487,8 +490,9 @@ static int cap_prox_suspend(struct i2c_client *client, pm_message_t mesg)
 	return 0;
 }
 
-static int cap_prox_resume(struct i2c_client *client)
+static int cap_prox_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct cap_prox_data *cp = i2c_get_clientdata(client);
 
 	if (cp_dbg & 0x4)
@@ -500,6 +504,12 @@ static int cap_prox_resume(struct i2c_client *client)
 
 	return 0;
 }
+#else
+#define cap_prox_suspend NULL
+#define cap_prox_resume NULL
+#endif
+
+static SIMPLE_DEV_PM_OPS(cap_prox_pm, cap_prox_suspend, cap_prox_resume);
 
 static const struct i2c_device_id cap_prox_id[] = {
 	{ CAP_PROX_NAME, 0 },
@@ -509,12 +519,11 @@ static const struct i2c_device_id cap_prox_id[] = {
 static struct i2c_driver cap_prox_driver = {
 	.probe		= cap_prox_probe,
 	.remove		= cap_prox_remove,
-	.suspend	= cap_prox_suspend,
-	.resume		= cap_prox_resume,
 	.id_table	= cap_prox_id,
 	.driver = {
 		.name	= CAP_PROX_NAME,
 		.owner	= THIS_MODULE,
+		.pm	= &cap_prox_pm,
 	},
 };
 
