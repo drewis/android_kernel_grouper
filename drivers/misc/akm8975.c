@@ -33,6 +33,7 @@
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
 #include <linux/akm8975.h>
+#include <linux/pm.h>
 
 #define AK8975DRV_CALL_DBG 0
 #if AK8975DRV_CALL_DBG
@@ -403,8 +404,10 @@ static irqreturn_t akm8975_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int akm8975_suspend(struct i2c_client *client, pm_message_t mesg)
+#ifdef CONFIG_PM_SLEEP
+static int akm8975_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct akm8975_data *akm = i2c_get_clientdata(client);
 	int ret = 0;
 
@@ -418,8 +421,9 @@ static int akm8975_suspend(struct i2c_client *client, pm_message_t mesg)
 	return ret;
 }
 
-static int akm8975_resume(struct i2c_client *client)
+static int akm8975_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct akm8975_data *akm = i2c_get_clientdata(client);
 	int ret = 0;
 
@@ -432,6 +436,12 @@ static int akm8975_resume(struct i2c_client *client)
 		ret = regulator_enable(akm->regulator);
 	return ret;
 }
+#else
+#define akm8975_suspend NULL
+#define akm8975_resume NULL
+#endif
+
+static SIMPLE_DEV_PM_OPS(akm8975_pm, akm8975_suspend, akm8975_resume);
 
 static int akm8975_init_client(struct i2c_client *client)
 {
@@ -611,11 +621,10 @@ MODULE_DEVICE_TABLE(i2c, akm8975_id);
 static struct i2c_driver akm8975_driver = {
 	.probe = akm8975_probe,
 	.remove = akm8975_remove,
-	.resume = akm8975_resume,
-	.suspend = akm8975_suspend,
 	.id_table = akm8975_id,
 	.driver = {
 		.name = "akm8975",
+		.pm = &akm8975_pm,
 	},
 };
 
