@@ -117,25 +117,26 @@ int qc_suspend(struct usb_interface *iface, pm_message_t event)
 		return -ENXIO;
 	}
 
-	if (!(event.event & PM_EVENT_AUTO)) {
-		DBG("device suspended to power level %d\n",
-		    event.event);
-		qc_setdown(dev, DOWN_DRIVER_SUSPENDED);
-	} else {
-		DBG("device autosuspend\n");
-	}
-
-	if (event.event & PM_EVENT_SUSPEND) {
-		qc_stopread(dev);
-		usbnet->udev->reset_resume = 0;
-		iface->dev.power.power_state.event = event.event;
-	} else {
-		usbnet->udev->reset_resume = 1;
-	}
-
 	ret = usbnet_suspend(iface, event);
-	if (!ret && (event.event & PM_EVENT_AUTO)) {
-		QC_WAKE_UNLOCK(&dev->wake_lock);
+	if (!ret) {
+		if (!(event.event & PM_EVENT_AUTO)) {
+			DBG("device suspended to power level %d\n",
+			    event.event);
+			qc_setdown(dev, DOWN_DRIVER_SUSPENDED);
+		} else {
+			DBG("device autosuspend\n");
+		}
+
+		if (event.event & PM_EVENT_SUSPEND) {
+			qc_stopread(dev);
+			usbnet->udev->reset_resume = 0;
+			iface->dev.power.power_state.event = event.event;
+		} else {
+			usbnet->udev->reset_resume = 1;
+		}
+
+		if (event.event & PM_EVENT_AUTO)
+			QC_WAKE_UNLOCK(&dev->wake_lock);
 	}
 
 	return ret;
