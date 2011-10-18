@@ -426,6 +426,16 @@ static int qcnet_worker(void *arg)
 			continue;
 		}
 
+		if (usbdev->state == USB_STATE_NOTATTACHED) {
+			ERR("usbdev not attached. schedule\n");
+			spin_unlock_irqrestore(&worker->urbs_lock, listflags);
+			spin_unlock_irqrestore(&worker->active_lock, activeflags);
+			QC_WAKE_UNLOCK(&dev->thread_lock);
+			schedule();
+			QC_WAKE_LOCK(&dev->thread_lock);
+			continue;
+		}
+
 		set_current_state(TASK_RUNNING);
 
 		req = list_first_entry(&worker->urbs, struct urbreq, node);
@@ -435,23 +445,43 @@ static int qcnet_worker(void *arg)
 		worker->active = req->urb;
 		spin_unlock_irqrestore(&worker->active_lock, activeflags);
 
-		device_lock(&iface->dev);
-		status = 0;
-		if (iface->dev.power.is_prepared) {
-			device_unlock(&iface->dev);
-			if (!wait_for_completion_timeout(&iface->dev.power.completion,HZ))
-				status = -ETIMEDOUT;
-			device_lock(&iface->dev);
-		}
-		if (iface->dev.power.is_suspended && !status) {
-			usb_autopm_get_interface_no_resume(iface);
-			device_unlock(&iface->dev);
-			if (!wait_for_completion_timeout(&iface->dev.power.completion,HZ))
-				status = -ETIMEDOUT;
-			device_lock(&iface->dev);
+		if (device_trylock(&iface->dev)) {
+			status = 0;
+			if (iface->dev.power.is_prepared) {
+				device_unlock(&iface->dev);
+				if (!wait_for_completion_timeout(&iface->dev.power.completion,HZ))
+					status = -ETIMEDOUT;
+				if (!device_trylock(&iface->dev)) {
+					ERR(" Device busy or closing, try again\n");
+					QC_WAKE_UNLOCK(&dev->thread_lock);
+					schedule();
+					QC_WAKE_LOCK(&dev->thread_lock);
+					continue;
+				}
+			}
+			if (iface->dev.power.is_suspended && !status) {
+				usb_autopm_get_interface_no_resume(iface);
+				device_unlock(&iface->dev);
+				if (!wait_for_completion_timeout(&iface->dev.power.completion,HZ))
+					status = -ETIMEDOUT;
+				if (!device_trylock(&iface->dev)) {
+					ERR(" Device busy or closing, try again\n");
+					QC_WAKE_UNLOCK(&dev->thread_lock);
+					schedule();
+					QC_WAKE_LOCK(&dev->thread_lock);
+					continue;
+				}
+			} else {
+				status = usb_autopm_get_interface(iface);
+			}
 		} else {
-			status = usb_autopm_get_interface(iface);
+			ERR(" Device busy or closing, try again\n");
+			QC_WAKE_UNLOCK(&dev->thread_lock);
+			schedule();
+			QC_WAKE_LOCK(&dev->thread_lock);
+			continue;
 		}
+
 		device_unlock(&iface->dev);
 
 		if (status < 0) {
