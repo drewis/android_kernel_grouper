@@ -51,6 +51,7 @@
 #include "f_adb.c"
 #include "f_mtp.c"
 #include "f_accessory.c"
+#include "f_usbnet.c"
 #define USB_ETH_RNDIS y
 #include "f_rndis.c"
 #include "rndis.c"
@@ -642,6 +643,24 @@ static struct android_usb_function accessory_function = {
 };
 
 
+static int usbnet_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
+{
+	return usbnet_bind_config(c);
+}
+
+static int usbnet_function_ctrlrequest(struct android_usb_function *f,
+					struct usb_composite_dev *cdev,
+					const struct usb_ctrlrequest *c)
+{
+	return usbnet_setup(cdev, c);
+}
+
+static struct android_usb_function usbnet_function = {
+	.name		= "usbnet",
+	.bind_config	= usbnet_function_bind_config,
+	.ctrlrequest	= usbnet_function_ctrlrequest,
+};
+
 static struct android_usb_function *supported_functions[] = {
 	&adb_function,
 	&acm_function,
@@ -650,6 +669,7 @@ static struct android_usb_function *supported_functions[] = {
 	&rndis_function,
 	&mass_storage_function,
 	&accessory_function,
+	&usbnet_function,
 	NULL
 };
 
