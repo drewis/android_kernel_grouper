@@ -1690,8 +1690,12 @@ void usb_autosuspend_work(struct work_struct *ws)
 	struct usb_interface	*intf =
 		container_of(ws, struct usb_interface, autopm_ws.work);
 	struct usb_device *udev = interface_to_usbdev(intf);
+	int ret;
 
-	pm_request_autosuspend(&udev->dev);
+	ret = pm_request_autosuspend(&udev->dev);
+
+	if (ret == -EAGAIN || ret == 1)
+		schedule_delayed_work(&intf->autopm_ws, msecs_to_jiffies(50));
 }
 
 int usb_runtime_suspend(struct device *dev)
