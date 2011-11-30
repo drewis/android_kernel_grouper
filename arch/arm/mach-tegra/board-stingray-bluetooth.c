@@ -44,21 +44,31 @@ static struct rfkill *bt_rfkill;
 struct bcm_bt_lpm {
 	int wake;
 	int host_wake;
-	bool rx_wake_lock_taken;
+	bool irq_disabled;
+	bool rx_wake_lock_released;
 
 	struct hrtimer enter_lpm_timer;
 	ktime_t enter_lpm_delay;
 
 	struct uart_port *uport;
 
-	struct wake_lock wake_lock;
-	char wake_lock_name[100];
+	struct wake_lock wake_lock_tx;
+	struct wake_lock wake_lock_rx;
 } bt_lpm;
 
 static int bcm4329_bt_rfkill_set_power(void *data, bool blocked)
 {
+	int irq;
+	irq = gpio_to_irq(BT_HOST_WAKE_GPIO);
+
 	// rfkill_ops callback. Turn transmitter on when blocked is false
 	if (!blocked) {
+		if (bt_lpm.irq_disabled) {
+			enable_irq(irq);
+			enable_irq_wake(irq);
+			bt_lpm.irq_disabled = false;
+		}
+
 		change_power_brcm_4329(true);
 		gpio_direction_output(BT_RESET_GPIO, 1);
 		gpio_direction_output(BT_SHUTDOWN_GPIO, 0);
@@ -66,6 +76,18 @@ static int bcm4329_bt_rfkill_set_power(void *data, bool blocked)
 		change_power_brcm_4329(false);
 		gpio_direction_output(BT_SHUTDOWN_GPIO, 0);
 		gpio_direction_output(BT_RESET_GPIO, 0);
+
+		// There is no resistor associated with this GPIO
+		// so the value can float. Disable and release the
+		// wakelock.
+		if (!bt_lpm.irq_disabled) {
+			disable_irq(irq);
+			disable_irq_wake(irq);
+			bt_lpm.irq_disabled = true;
+		}
+
+		if (bt_lpm.host_wake && !bt_lpm.rx_wake_lock_released)
+			wake_lock_timeout(&bt_lpm.wake_lock_rx, HZ/2);
 	}
 
 	return 0;
@@ -80,7 +102,7 @@ static void set_wake_locked(int wake)
 	bt_lpm.wake = wake;
 
 	if (!wake)
-		wake_unlock(&bt_lpm.wake_lock);
+		wake_unlock(&bt_lpm.wake_lock_tx);
 
 	gpio_set_value(BT_WAKE_GPIO, wake);
 }
@@ -109,8 +131,8 @@ EXPORT_SYMBOL(bcm_bt_lpm_exit_lpm_locked);
 void bcm_bt_rx_done_locked(struct uart_port *uport) {
 	if (bt_lpm.host_wake) {
 		// Release wake in 500 ms so that higher layers can take it.
-		wake_lock_timeout(&bt_lpm.wake_lock, HZ/2);
-		bt_lpm.rx_wake_lock_taken = true;
+		wake_lock_timeout(&bt_lpm.wake_lock_rx, HZ/2);
+		bt_lpm.rx_wake_lock_released = true;
 	}
 }
 EXPORT_SYMBOL(bcm_bt_rx_done_locked);
@@ -123,13 +145,13 @@ static void update_host_wake_locked(int host_wake)
 	bt_lpm.host_wake = host_wake;
 
 	if (host_wake) {
-		bt_lpm.rx_wake_lock_taken = false;
-		wake_lock(&bt_lpm.wake_lock);
-	} else if (!bt_lpm.rx_wake_lock_taken) {
+		bt_lpm.rx_wake_lock_released = false;
+		wake_lock(&bt_lpm.wake_lock_rx);
+	} else if (!bt_lpm.rx_wake_lock_released) {
 		// Failsafe timeout of wakelock.
 		// If the host wake pin is asserted and no data is sent,
 		// when its deasserted we will enter this path
-		wake_lock_timeout(&bt_lpm.wake_lock, HZ/2);
+		wake_lock_timeout(&bt_lpm.wake_lock_rx, HZ/2);
 	}
 
 }
@@ -204,13 +226,13 @@ static int bcm_bt_lpm_init(struct platform_device *pdev)
 		return ret;
 	}
 
+	bt_lpm.irq_disabled = false;
+
 	gpio_direction_output(BT_WAKE_GPIO, 0);
 	gpio_direction_input(BT_HOST_WAKE_GPIO);
 
-	snprintf(bt_lpm.wake_lock_name, sizeof(bt_lpm.wake_lock_name),
-			"BTLowPower");
-	wake_lock_init(&bt_lpm.wake_lock, WAKE_LOCK_SUSPEND,
-			 bt_lpm.wake_lock_name);
+	wake_lock_init(&bt_lpm.wake_lock_tx, WAKE_LOCK_SUSPEND, "BTLowPowerTx");
+	wake_lock_init(&bt_lpm.wake_lock_rx, WAKE_LOCK_SUSPEND, "BTLowPowerRx");
 	return 0;
 }
 
@@ -295,7 +317,8 @@ static int bcm4329_bluetooth_remove(struct platform_device *pdev)
 	gpio_free(BT_WAKE_GPIO);
 	gpio_free(BT_HOST_WAKE_GPIO);
 
-	wake_lock_destroy(&bt_lpm.wake_lock);
+	wake_lock_destroy(&bt_lpm.wake_lock_rx);
+	wake_lock_destroy(&bt_lpm.wake_lock_tx);
 	return 0;
 }
 
