@@ -25,6 +25,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/fsl_devices.h>
 #include <linux/platform_data/tegra_usb.h>
+#include <linux/platform_data/ram_console.h>
 #include <linux/pda_power.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
@@ -407,11 +408,16 @@ static struct resource ram_console_resources[] = {
 	},
 };
 
+static struct ram_console_platform_data ram_console_pdata;
+
 static struct platform_device ram_console_device = {
 	.name           = "ram_console",
 	.id             = -1,
 	.num_resources  = ARRAY_SIZE(ram_console_resources),
 	.resource       = ram_console_resources,
+	.dev    = {
+		.platform_data = &ram_console_pdata,
+	},
 };
 
 static struct nvmap_platform_carveout stingray_carveouts[] = {
@@ -1000,6 +1006,10 @@ static void __init tegra_stingray_init(void)
 	res = platform_get_resource(&ram_console_device, IORESOURCE_MEM, 0);
 	res->start = ramconsole_start;
 	res->end = ramconsole_start + ramconsole_size - 1;
+
+	if (readl(IO_ADDRESS(TEGRA_CLK_RESET_BASE)) & BIT(12))
+		ram_console_pdata.bootinfo =
+			"tegra_wdt: last reset due to watchdog timeout";
 
 	stingray_carveouts[1].base = tegra_carveout_start;
 	stingray_carveouts[1].size = tegra_carveout_size;
