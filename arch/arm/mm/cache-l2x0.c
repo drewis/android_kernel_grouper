@@ -134,15 +134,20 @@ static void l2x0_flush_all(void)
 	spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
+static void __l2x0_clean_all(void)
+{
+	/* clean all ways */
+	writel_relaxed(l2x0_way_mask, l2x0_base + L2X0_CLEAN_WAY);
+	cache_wait_way(l2x0_base + L2X0_CLEAN_WAY, l2x0_way_mask);
+	cache_sync();
+}
+
 static void l2x0_clean_all(void)
 {
 	unsigned long flags;
 
-	/* clean all ways */
 	spin_lock_irqsave(&l2x0_lock, flags);
-	writel_relaxed(l2x0_way_mask, l2x0_base + L2X0_CLEAN_WAY);
-	cache_wait_way(l2x0_base + L2X0_CLEAN_WAY, l2x0_way_mask);
-	cache_sync();
+	__l2x0_clean_all();
 	spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
@@ -276,6 +281,7 @@ static void l2x0_disable(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&l2x0_lock, flags);
+	__l2x0_clean_all();
 	writel_relaxed(0, l2x0_base + L2X0_CTRL);
 	spin_unlock_irqrestore(&l2x0_lock, flags);
 }
