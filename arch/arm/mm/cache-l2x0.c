@@ -286,6 +286,28 @@ static void l2x0_disable(void)
 	spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
+static u32 l2x0_saved_context[4];
+
+void l2x0_save(void)
+{
+	int i = 0;
+	l2x0_saved_context[i++] = readl_relaxed(l2x0_base + L2X0_DATA_LATENCY_CTRL);
+	l2x0_saved_context[i++] = readl_relaxed(l2x0_base + L2X0_TAG_LATENCY_CTRL);
+	l2x0_saved_context[i++] = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
+	l2x0_saved_context[i++] = readl_relaxed(l2x0_base + L2X0_CTRL);
+	BUG_ON(i != ARRAY_SIZE(l2x0_saved_context));
+}
+
+void l2x0_restore(void)
+{
+	int i = 0;
+	writel_relaxed(l2x0_saved_context[i++], l2x0_base + L2X0_DATA_LATENCY_CTRL);
+	writel_relaxed(l2x0_saved_context[i++], l2x0_base + L2X0_TAG_LATENCY_CTRL);
+	writel_relaxed(l2x0_saved_context[i++], l2x0_base + L2X0_AUX_CTRL);
+	writel_relaxed(l2x0_saved_context[i++], l2x0_base + L2X0_CTRL);
+	BUG_ON(i != ARRAY_SIZE(l2x0_saved_context));
+}
+
 void l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 {
 	__u32 aux;
