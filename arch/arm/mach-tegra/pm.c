@@ -405,11 +405,12 @@ void tegra_idle_lp2_last(void)
 
 	suspend_cpu_complex();
 	flush_cache_all();
-	outer_flush_all();
 	outer_disable();
+	l2x0_save();
 
 	tegra_sleep_cpu(PLAT_PHYS_OFFSET - PAGE_OFFSET);
 
+	l2x0_restore();
 	l2x0_enable();
 	restore_cpu_complex();
 	cpu_complex_pm_exit();
