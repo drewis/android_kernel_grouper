@@ -30,6 +30,7 @@
 #include <linux/io.h>
 #include <linux/suspend.h>
 #include <linux/debugfs.h>
+#include <linux/cpu.h>
 
 #include <asm/system.h>
 
@@ -57,13 +58,12 @@ static struct cpufreq_frequency_table freq_table[] = {
 static struct clk *cpu_clk;
 static struct clk *emc_clk;
 
-static unsigned long target_cpu_speed[NUM_CPUS];
+static unsigned long target_cpu_speed;
 static DEFINE_MUTEX(tegra_cpu_lock);
 static bool is_suspended;
 
 unsigned int tegra_getspeed(unsigned int cpu);
 static int tegra_update_cpu_speed(unsigned long rate);
-static unsigned long tegra_cpu_highest_speed(void);
 
 #ifdef CONFIG_TEGRA_THERMAL_THROTTLE
 /* CPU frequency is gradually lowered when throttling is enabled */
@@ -125,7 +125,7 @@ void tegra_throttling_enable(bool enable)
 		cancel_delayed_work_sync(&throttle_work);
 		is_throttling = false;
 		/* restore speed requested by governor */
-		tegra_update_cpu_speed(tegra_cpu_highest_speed());
+		tegra_update_cpu_speed(target_cpu_speed);
 	}
 
 	mutex_unlock(&tegra_cpu_lock);
@@ -236,6 +236,8 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	else
 		clk_set_rate(emc_clk, 100000000);  /* emc 50Mhz */
 
+	get_online_cpus();
+
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 
@@ -248,23 +250,15 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	if (ret) {
 		pr_err("cpu-tegra: Failed to set cpu frequency to %d kHz\n",
 			freqs.new);
-		return ret;
+		freqs.new = freqs.old;
 	}
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
-	return 0;
-}
+	put_online_cpus();
 
-static unsigned long tegra_cpu_highest_speed(void)
-{
-	unsigned long rate = 0;
-	int i;
-
-	for_each_online_cpu(i)
-		rate = max(rate, target_cpu_speed[i]);
-	return rate;
+	return ret;
 }
 
 static int tegra_target(struct cpufreq_policy *policy,
@@ -273,7 +267,6 @@ static int tegra_target(struct cpufreq_policy *policy,
 {
 	int idx;
 	unsigned int freq;
-	unsigned int new_speed;
 	int ret = 0;
 
 	mutex_lock(&tegra_cpu_lock);
@@ -288,9 +281,9 @@ static int tegra_target(struct cpufreq_policy *policy,
 
 	freq = freq_table[idx].frequency;
 
-	target_cpu_speed[policy->cpu] = freq;
-	new_speed = throttle_governor_speed(tegra_cpu_highest_speed());
-	ret = tegra_update_cpu_speed(new_speed);
+	target_cpu_speed = freq;
+	freq = throttle_governor_speed(freq);
+	ret = tegra_update_cpu_speed(freq);
 out:
 	mutex_unlock(&tegra_cpu_lock);
 	return ret;
@@ -339,13 +332,12 @@ static int tegra_cpu_init(struct cpufreq_policy *policy)
 	cpufreq_frequency_table_cpuinfo(policy, freq_table);
 	cpufreq_frequency_table_get_attr(freq_table, policy->cpu);
 	policy->cur = tegra_getspeed(policy->cpu);
-	target_cpu_speed[policy->cpu] = policy->cur;
 
 	/* FIXME: what's the actual transition time? */
 	policy->cpuinfo.transition_latency = 300 * 1000;
 
-	policy->shared_type = CPUFREQ_SHARED_TYPE_ALL;
-	cpumask_copy(policy->related_cpus, cpu_possible_mask);
+	policy->shared_type = CPUFREQ_SHARED_TYPE_ANY;
+	cpumask_setall(policy->cpus);
 
 	if (policy->cpu == 0) {
 		register_pm_notifier(&tegra_cpu_pm_notifier);

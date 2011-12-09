@@ -23,6 +23,7 @@
 #include "dev.h"
 
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/string.h>
 #include <linux/spinlock.h>
 #include <linux/fs.h>
@@ -87,7 +88,7 @@ static int nvhost_channelrelease(struct inode *inode, struct file *filp)
 		nvmap_free(priv->ch->dev->nvmap, priv->gather_mem);
 
 	nvmap_client_put(priv->nvmap);
-	kfree(priv);
+	vfree(priv);
 	return 0;
 }
 
@@ -102,7 +103,7 @@ static int nvhost_channelopen(struct inode *inode, struct file *filp)
 	if (!ch)
 		return -ENOMEM;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+	priv = vzalloc(sizeof(*priv));
 	if (!priv) {
 		nvhost_putchannel(ch, NULL);
 		return -ENOMEM;
