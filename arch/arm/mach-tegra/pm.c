@@ -405,7 +405,6 @@ void tegra_idle_lp2_last(void)
 
 	suspend_cpu_complex();
 	flush_cache_all();
-	outer_flush_all();
 	outer_disable();
 
 	tegra_sleep_cpu(PLAT_PHYS_OFFSET - PAGE_OFFSET);
