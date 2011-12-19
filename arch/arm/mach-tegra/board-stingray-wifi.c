@@ -160,11 +160,11 @@ static int stingray_wifi_power(int on)
 {
 	pr_debug("%s: %d\n", __func__, on);
 
-	mdelay(100);
+	msleep(100);
 	change_power_brcm_4329(on);
-	mdelay(100);
+	msleep(300);
 	gpio_set_value(STINGRAY_WLAN_RST, on);
-	mdelay(200);
+	msleep(200);
 
 	stingray_wifi_power_state = on;
 	return 0;
