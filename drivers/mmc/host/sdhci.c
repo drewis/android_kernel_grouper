@@ -1594,7 +1594,11 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 	if (intmask & (SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE)) {
 		sdhci_writel(host, intmask & (SDHCI_INT_CARD_INSERT |
 			SDHCI_INT_CARD_REMOVE), SDHCI_INT_STATUS);
-		tasklet_schedule(&host->card_tasklet);
+		if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+			pr_err("%s: Unexpected Card change bit is set\n",
+				mmc_hostname(host->mmc));
+		else
+			tasklet_schedule(&host->card_tasklet);
 	}
 
 	intmask &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE);
