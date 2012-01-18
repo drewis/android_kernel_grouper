@@ -162,6 +162,8 @@ static DEFINE_SPINLOCK(tegra_lp2_lock);
 static cpumask_t tegra_in_lp2;
 static cpumask_t tegra_lp2_online;
 
+static bool disallow_lp2;
+
 unsigned long tegra_cpu_power_good_time(void)
 {
 	if (WARN_ON_ONCE(!pdata))
@@ -429,6 +431,12 @@ void tegra_idle_lp2(void)
 
 	spin_lock(&tegra_lp2_lock);
 
+	if (disallow_lp2) {
+		spin_unlock(&tegra_lp2_lock);
+		tegra_cpu_wfi();
+		return;
+	}
+
 	cpumask_set_cpu(cpu, &tegra_in_lp2);
 	if (cpumask_equal(&tegra_in_lp2, &tegra_lp2_online))
 		last_cpu = true;
@@ -526,11 +534,17 @@ static void tegra_common_resume(void)
 static int tegra_suspend_prepare_late(void)
 {
 	disable_irq(INT_SYS_STATS_MON);
+	spin_lock(&tegra_lp2_lock);
+	disallow_lp2 = true;
+	spin_unlock(&tegra_lp2_lock);
 	return 0;
 }
 
 static void tegra_suspend_wake(void)
 {
+	spin_lock(&tegra_lp2_lock);
+	disallow_lp2 = false;
+	spin_unlock(&tegra_lp2_lock);
 	enable_irq(INT_SYS_STATS_MON);
 }
 
