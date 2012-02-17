@@ -443,6 +443,9 @@ static void usbnet_unbind(struct usb_configuration *c, struct usb_function *f)
 		usb_ep_free_request(context->bulk_in, req);
 	}
 
+	context->bulk_in->driver_data = NULL;
+	context->bulk_out->driver_data = NULL;
+
 	context->config = 0;
 
 	usbnet_cleanup(dev);
@@ -536,16 +539,6 @@ static int usbnet_bind(struct usb_configuration *c,
 	}
 	ep->driver_data = context;
 	context->bulk_out = ep;
-
-
-	ep = usb_ep_autoconfig(cdev->gadget, &fs_intr_out_desc);
-	if (!ep) {
-		USBNETDBG(context, "%s auto-configure hs_intr_out_desc error\n",
-		      __func__);
-		goto autoconf_fail;
-	}
-	ep->driver_data = context;
-	context->intr_out = ep;
 
 	if (gadget_is_dualspeed(cdev->gadget)) {
 
@@ -646,21 +639,6 @@ static void do_set_config(struct usb_function *f, u16 new_config)
 		}
 
 		context->bulk_out->driver_data = context;
-
-		if (high_speed_flag)
-			result = usb_ep_enable(context->intr_out,
-						&hs_intr_out_desc);
-		else
-		result = usb_ep_enable(context->intr_out,
-					&fs_intr_out_desc);
-
-		if (result != 0) {
-			USBNETDBG(context,
-				"%s: failed to enable INTR_OUT EP ret = %d\n",
-				__func__, result);
-		}
-
-		context->intr_out->driver_data = context;
 
 		/* we're online -- get all rx requests queued */
 		while ((req = usb_get_recv_request(context))) {
