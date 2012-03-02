@@ -193,12 +193,14 @@ static int __init tegra_init_ahb_gizmo_settings(void)
 
 	val = gizmo_readl(AHB_MEM_PREFETCH_CFG1);
 	val &= ~MST_ID(~0);
-	val |= PREFETCH_ENB | AHBDMA_MST_ID | ADDR_BNDRY(0xc) | INACTIVITY_TIMEOUT(0x1000);
+	val |= PREFETCH_ENB | AHBDMA_MST_ID | ADDR_BNDRY(0xc)
+				| INACTIVITY_TIMEOUT(0xFFFF);
 	gizmo_writel(val, AHB_MEM_PREFETCH_CFG1);
 
 	val = gizmo_readl(AHB_MEM_PREFETCH_CFG2);
 	val &= ~MST_ID(~0);
-	val |= PREFETCH_ENB | USB_MST_ID | ADDR_BNDRY(0xc) | INACTIVITY_TIMEOUT(0x1000);
+	val |= PREFETCH_ENB | USB_MST_ID | ADDR_BNDRY(0xc)
+				| INACTIVITY_TIMEOUT(0xFFFF);
 	gizmo_writel(val, AHB_MEM_PREFETCH_CFG2);
 
 	val = gizmo_readl(AHB_MEM_PREFETCH_CFG3);
