@@ -727,12 +727,18 @@ static void fsl_queue_td(struct fsl_ep *ep, struct fsl_req *req)
 
 		if (tmp_stat)
 			goto out;
+		else {
+			if(!(dQH->next_dtd_ptr &
+			    cpu_to_le32(DTD_NEXT_TERMINATE)))
+				goto prime;
+		}
 	}
 
 	/* Write dQH next pointer and terminate bit to 0 */
 	temp = req->head->td_dma & EP_QUEUE_HEAD_NEXT_POINTER_MASK;
 	dQH->next_dtd_ptr = cpu_to_le32(temp);
 
+prime:
 	/* Clear active and halt bit */
 	temp = cpu_to_le32(~(EP_QUEUE_HEAD_STATUS_ACTIVE
 			| EP_QUEUE_HEAD_STATUS_HALT));
