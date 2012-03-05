@@ -1666,12 +1666,15 @@ out:
 int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 {
 	int ret = 0;
-	struct mmc_host *mmc = host->mmc;
 
 	sdhci_disable_card_detection(host);
 
-	if (mmc->card && (mmc->card->type != MMC_TYPE_SDIO))
-		ret = mmc_suspend_host(host->mmc);
+	ret = mmc_suspend_host(host->mmc);
+
+	if (ret) {
+		sdhci_enable_card_detection(host);
+		return ret;
+	}
 
 	sdhci_mask_irqs(host, SDHCI_INT_ALL_MASK);
 
@@ -1689,7 +1692,6 @@ EXPORT_SYMBOL_GPL(sdhci_suspend_host);
 int sdhci_resume_host(struct sdhci_host *host)
 {
 	int ret = 0;
-	struct mmc_host *mmc = host->mmc;
 
 	if (host->vmmc) {
 		int ret = regulator_enable(host->vmmc);
@@ -1709,8 +1711,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 	sdhci_init(host, (host->mmc->pm_flags & MMC_PM_KEEP_POWER));
 	mmiowb();
 
-	if (mmc->card && (mmc->card->type != MMC_TYPE_SDIO))
-		ret = mmc_resume_host(host->mmc);
+	ret = mmc_resume_host(host->mmc);
 
 	sdhci_enable_card_detection(host);
 
