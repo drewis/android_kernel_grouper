@@ -328,6 +328,7 @@ static int sta_info_finish_insert(struct sta_info *sta, bool async)
 	ieee80211_sta_debugfs_add(sta);
 	rate_control_add_sta_debugfs(sta);
 
+	memset(&sinfo, 0, sizeof(sinfo));
 	sinfo.filled = 0;
 	sinfo.generation = local->sta_generation;
 	cfg80211_new_sta(sdata->dev, sta->sta.addr, &sinfo, GFP_KERNEL);
@@ -697,6 +698,8 @@ static int __must_check __sta_info_destroy(struct sta_info *sta)
 	wiphy_debug(local->hw.wiphy, "Removed STA %pM\n", sta->sta.addr);
 #endif /* CONFIG_MAC80211_VERBOSE_DEBUG */
 	cancel_work_sync(&sta->drv_unblock_wk);
+
+	cfg80211_del_sta(sdata->dev, sta->sta.addr, GFP_KERNEL);
 
 	rate_control_remove_sta_debugfs(sta);
 	ieee80211_sta_debugfs_remove(sta);
