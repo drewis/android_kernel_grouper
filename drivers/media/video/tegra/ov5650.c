@@ -1517,4 +1517,4 @@ static void __exit ov5650_exit(void)
 
 module_init(ov5650_init);
 module_exit(ov5650_exit);
-
+MODULE_LICENSE("GPL v2");
