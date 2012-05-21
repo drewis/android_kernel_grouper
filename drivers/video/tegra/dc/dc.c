@@ -2112,6 +2112,13 @@ static void tegra_dc_underflow_handler(struct tegra_dc *dc)
 		dc->stats.underflows_c += tegra_dc_underflow_count(dc,
 			DC_WINBUF_CD_UFLOW_STATUS);
 
+        printk("%s:underflow stats: %llu, "
+               "underflow_a: %llu, underflow_b: %llu underflow_c: %llu emc_rate %d\n",
+		dc->ndev->name, dc->stats.underflows,
+		dc->stats.underflows_a, dc->stats.underflows_b, dc->stats.underflows_c,
+		dc->emc_clk_rate);
+
+
 	/* Check for any underflow reset conditions */
 	for (i = 0; i < DC_N_WINDOWS; i++) {
 		if (dc->underflow_mask & (WIN_A_UF_INT << i)) {
