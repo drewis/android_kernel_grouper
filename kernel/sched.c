@@ -3270,6 +3270,7 @@ unsigned long this_cpu_load(void)
 /* Variables and functions for calc_load */
 static atomic_long_t calc_load_tasks;
 static unsigned long calc_load_update;
+static unsigned long idle_mask_update;
 unsigned long avenrun[3];
 EXPORT_SYMBOL(avenrun);
 
@@ -3305,13 +3306,37 @@ calc_load(unsigned long load, unsigned long exp, unsigned long active)
  */
 static atomic_long_t calc_load_tasks_idle;
 
+/*
+ * Those cpus whose load alread has been calculated in this LOAD_FREQ
+ * period will be masked.
+ */
+struct cpumask  cpu_load_update_mask;
+
+/*
+ * Fold unmask cpus' idle load
+ */
+static atomic_long_t calc_unmask_cpu_load_idle;
+
 static void calc_load_account_idle(struct rq *this_rq)
 {
 	long delta;
+	int cpu = smp_processor_id();
 
 	delta = calc_load_fold_active(this_rq);
-	if (delta)
+	if (delta) {
 		atomic_long_add(delta, &calc_load_tasks_idle);
+		/*
+		 * calc_unmask_cpu_load_idle is only used between the first
+		 * cpu load accounting
+		 * and the last cpu load accounting in every LOAD_FREQ period,
+		 * and records idle load on
+		 * those unmask cpus.
+		 */
+		if (!cpumask_empty(&cpu_load_update_mask) &&
+			!cpumask_test_cpu(cpu, &cpu_load_update_mask)) {
+			atomic_long_add(delta, &calc_unmask_cpu_load_idle);
+		}
+	}
 }
 
 static long calc_load_fold_idle(void)
@@ -3323,6 +3348,18 @@ static long calc_load_fold_idle(void)
 	 */
 	if (atomic_long_read(&calc_load_tasks_idle))
 		delta = atomic_long_xchg(&calc_load_tasks_idle, 0);
+
+	return delta;
+}
+
+static long calc_load_fold_unmask_idle(void)
+{
+	long delta = 0;
+
+	if (atomic_long_read(&calc_unmask_cpu_load_idle)) {
+		delta = atomic_long_xchg(&calc_unmask_cpu_load_idle, 0);
+		atomic_long_sub(delta, &calc_load_tasks_idle);
+	}
 
 	return delta;
 }
@@ -3421,6 +3458,9 @@ static void calc_global_nohz(unsigned long ticks)
 	if (delta)
 		atomic_long_add(delta, &calc_load_tasks);
 
+	cpumask_clear(&cpu_load_update_mask);
+	atomic_long_xchg(&calc_unmask_cpu_load_idle, 0);
+
 	/*
 	 * If we were idle for multiple load cycles, apply them.
 	 */
@@ -3479,6 +3519,26 @@ void get_avenrun(unsigned long *loads, unsigned long offset, int shift)
 }
 
 /*
++ * Prepare cpu_load_update_mask for the comming per-cpu load calculating
++ */
+void prepare_idle_mask(unsigned long ticks)
+{
+	if (time_before(jiffies, idle_mask_update - 10))
+		return;
+
+	cpumask_clear(&cpu_load_update_mask);
+	/*
+	 * calc_unmask_cpu_load_idle is part of calc_load_tasks_idle,
+	 * and calc_load_tasks_ide will be folded into calc_load_tasks
+	 * immediately.
+	 * So no need to keep this now.
+	 */
+	atomic_long_xchg(&calc_unmask_cpu_load_idle, 0);
+
+	idle_mask_update += LOAD_FREQ;
+}
+
+/*
  * calc_load - update the avenrun load estimates 10 ticks after the
  * CPUs have updated calc_load_tasks.
  */
@@ -3508,12 +3568,30 @@ void calc_global_load(unsigned long ticks)
 static void calc_load_account_active(struct rq *this_rq)
 {
 	long delta;
+	int cpu = smp_processor_id();
 
 	if (time_before(jiffies, this_rq->calc_load_update))
 		return;
 
+	/*
+	 * cpu_load_update_mask empty means the first cpu
+	 * doing load calculating. Global idle should be
+	 * folded into calc_load_tasks, so we just push it
+	 * to calc_unmask_cpu_load_idle.
+	 */
+	if (cpumask_empty(&cpu_load_update_mask))
+		atomic_long_set(&calc_unmask_cpu_load_idle,
+			atomic_long_read(&calc_load_tasks_idle));
+	/*
+	 * Mask this cpu as load calculated,
+	 * then go-idle in this cpu won't take effect
+	 * to calc_load_tasks.
+	 */
+	cpumask_set_cpu(cpu, &cpu_load_update_mask);
+
 	delta  = calc_load_fold_active(this_rq);
-	delta += calc_load_fold_idle();
+	/* Fold unmask cpus' load into calc_load_tasks */
+	delta += calc_load_fold_unmask_idle();
 	if (delta)
 		atomic_long_add(delta, &calc_load_tasks);
 
@@ -8202,6 +8280,8 @@ void __init sched_init(void)
 	init_idle(current, smp_processor_id());
 
 	calc_load_update = jiffies + LOAD_FREQ;
+
+	idle_mask_update = jiffies + LOAD_FREQ;
 
 	/*
 	 * During early bootup we pretend to be a normal task:
