@@ -91,8 +91,11 @@ static struct page *nvmap_page_pool_alloc_locked(struct nvmap_page_pool *pool)
 {
 	struct page *page = NULL;
 
-	if (pool->npages > 0)
+	if (pool->npages > 0) {
 		page = pool->page_array[--pool->npages];
+		atomic_dec(&page->_count);
+		BUG_ON(atomic_read(&page->_count) != 1);
+	}
 	return page;
 }
 
@@ -113,7 +116,9 @@ static bool nvmap_page_pool_release_locked(struct nvmap_page_pool *pool,
 {
 	int ret = false;
 
+	BUG_ON(atomic_read(&page->_count) != 1);
 	if (enable_pp && pool->npages < pool->max_pages) {
+		atomic_inc(&page->_count);
 		pool->page_array[pool->npages++] = page;
 		ret = true;
 	}
@@ -140,6 +145,7 @@ static int nvmap_page_pool_get_available_count(struct nvmap_page_pool *pool)
 
 static int nvmap_page_pool_free(struct nvmap_page_pool *pool, int nr_free)
 {
+	int err;
 	int i = nr_free;
 	int idx = 0;
 	struct page *page;
@@ -155,8 +161,12 @@ static int nvmap_page_pool_free(struct nvmap_page_pool *pool, int nr_free)
 		i--;
 	}
 
-	if (idx)
-		set_pages_array_wb(pool->shrink_array, idx);
+	if (idx) {
+		/* This op should never fail. */
+		err = set_pages_array_wb(pool->shrink_array, idx);
+		BUG_ON(err);
+	}
+
 	while (idx--)
 		__free_page(pool->shrink_array[idx]);
 	nvmap_page_pool_unlock(pool);
