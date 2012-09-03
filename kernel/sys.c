@@ -409,8 +409,17 @@ EXPORT_SYMBOL_GPL(kernel_halt);
  *
  *	Shutdown everything and perform a clean system power_off.
  */
+
+extern unsigned battery_cable_status;
 void kernel_power_off(void)
 {
+	 if (battery_cable_status) {
+		char cmd[] = "chrager-mode";
+
+		printk(KERN_EMERG "kernel_power_off: go to charger mode!");
+		kernel_restart(cmd);
+	 }
+
 #ifndef CONFIG_CPUQUIET_FRAMEWORK
 	disable_auto_hotplug();
 #endif
