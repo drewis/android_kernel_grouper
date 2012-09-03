@@ -573,9 +573,7 @@ static int __init vfp_init(void)
 {
 	unsigned int vfpsid;
 	unsigned int cpu_arch = cpu_architecture();
-#ifdef CONFIG_SMP
-	preempt_disable();
-#endif
+
 	if (cpu_arch >= CPU_ARCH_ARMv6)
 		vfp_enable(NULL);
 
@@ -589,9 +587,6 @@ static int __init vfp_init(void)
 	vfpsid = fmrx(FPSID);
 	barrier();
 	vfp_vector = vfp_null_entry;
-#ifdef CONFIG_SMP
-	preempt_enable();
-#endif
 
 	printk(KERN_INFO "VFP support v0.3: ");
 	if (VFP_arch)
