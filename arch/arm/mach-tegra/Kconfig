@@ -474,6 +474,13 @@ config TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
 	help
 	 Also will restore to original cpu frequency governor when device is resumed
 
+config TEGRA_RUNNABLE_THREAD
+	bool "Tegra3 runnable thread hotplug"
+	depends on ARCH_TEGRA_3x_SOC
+	default n
+	help
+	  Tegra3 Runnable Thread calculations for CPU hotplug
+
 config TEGRA_VARIANT_INFO
 	bool "Tegra3 variant info"
 	depends on ARCH_TEGRA_3x_SOC

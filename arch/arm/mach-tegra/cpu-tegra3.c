@@ -73,7 +73,9 @@ static struct clk *cpu_clk;
 static struct clk *cpu_g_clk;
 static struct clk *cpu_lp_clk;
 
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 static unsigned long last_change_time;
+#endif
 
 static struct {
 	cputime64_t time_up_total;
@@ -188,6 +190,7 @@ enum {
 	TEGRA_CPU_SPEED_SKEWED,
 };
 
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 #define NR_FSHIFT	2
 static unsigned int nr_run_thresholds[] = {
 /*      1,  2,  3,  4 - on-line cpus target */
@@ -195,6 +198,7 @@ static unsigned int nr_run_thresholds[] = {
 };
 static unsigned int nr_run_hysteresis = 2;	/* 0.5 thread */
 static unsigned int nr_run_last;
+#endif
 
 static noinline int tegra_cpu_speed_balance(void)
 {
@@ -204,6 +208,7 @@ static noinline int tegra_cpu_speed_balance(void)
 	unsigned int nr_cpus = num_online_cpus();
 	unsigned int max_cpus = pm_qos_request(PM_QOS_MAX_ONLINE_CPUS) ? : 4;
 	unsigned int min_cpus = pm_qos_request(PM_QOS_MIN_ONLINE_CPUS);
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	unsigned int avg_nr_run = avg_nr_running();
 	unsigned int nr_run;
 
@@ -224,16 +229,21 @@ static noinline int tegra_cpu_speed_balance(void)
 			break;
 	}
 	nr_run_last = nr_run;
+#endif
 
 	if (((tegra_count_slow_cpus(skewed_speed) >= 2) ||
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	     (nr_run < nr_cpus) ||
+#endif
 	     tegra_cpu_edp_favor_down(nr_cpus, mp_overhead) ||
 	     (highest_speed <= idle_bottom_freq) || (nr_cpus > max_cpus)) &&
 	    (nr_cpus > min_cpus))
 		return TEGRA_CPU_SPEED_SKEWED;
 
 	if (((tegra_count_slow_cpus(balanced_speed) >= 1) ||
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	     (nr_run <= nr_cpus) ||
+#endif
 	     (!tegra_cpu_edp_favor_up(nr_cpus, mp_overhead)) ||
 	     (highest_speed <= idle_bottom_freq) || (nr_cpus == max_cpus)) &&
 	    (nr_cpus >= min_cpus))
@@ -251,6 +261,9 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 	bool up = false;
 	unsigned int cpu = nr_cpu_ids;
 	unsigned long now = jiffies;
+#ifndef CONFIG_TEGRA_RUNNABLE_THREAD
+	static unsigned long last_change_time;
+#endif
 
 	mutex_lock(tegra3_cpu_lock);
 
@@ -263,8 +276,12 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 		if (cpu < nr_cpu_ids) {
 			up = false;
 		} else if (!is_lp_cluster() && !no_lp &&
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 			   !pm_qos_request(PM_QOS_MIN_ONLINE_CPUS) &&
 			   ((now - last_change_time) >= down_delay)) {
+#else
+			   !pm_qos_request(PM_QOS_MIN_ONLINE_CPUS)) {
+#endif
 			if(!clk_set_parent(cpu_clk, cpu_lp_clk)) {
 				hp_stats_update(CONFIG_NR_CPUS, true);
 				hp_stats_update(0, false);
@@ -274,12 +291,18 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 			}
 		}
 		queue_delayed_work(
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 			hotplug_wq, &hotplug_work, up2gn_delay);
+#else
+			hotplug_wq, &hotplug_work, down_delay);
+#endif
 		break;
 	case TEGRA_HP_UP:
 		if (is_lp_cluster() && !no_lp) {
 			if(!clk_set_parent(cpu_clk, cpu_g_clk)) {
+#ifndef CONFIG_TEGRA_RUNNABLE_THREAD
 				last_change_time = now;
+#endif
 				hp_stats_update(CONFIG_NR_CPUS, false);
 				hp_stats_update(0, true);
 				/* catch-up with governor target speed */
@@ -346,7 +369,9 @@ static int min_cpus_notify(struct notifier_block *nb, unsigned long n, void *p)
 		tegra_update_cpu_speed(speed);
 
 		if (!clk_set_parent(cpu_clk, cpu_g_clk)) {
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 			last_change_time = jiffies;
+#endif
 			hp_stats_update(CONFIG_NR_CPUS, false);
 			hp_stats_update(0, true);
 		}
@@ -412,7 +437,11 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 		} else if (cpu_freq <= bottom_freq) {
 			hp_state = TEGRA_HP_DOWN;
 			queue_delayed_work(
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 				hotplug_wq, &hotplug_work, up_delay);
+#else
+				hotplug_wq, &hotplug_work, down_delay);
+#endif
 		}
 		break;
 	case TEGRA_HP_DOWN:
@@ -428,7 +457,11 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 		if (cpu_freq <= bottom_freq) {
 			hp_state = TEGRA_HP_DOWN;
 			queue_delayed_work(
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 				hotplug_wq, &hotplug_work, up_delay);
+#else
+				hotplug_wq, &hotplug_work, down_delay);
+#endif
 		} else if (cpu_freq <= top_freq) {
 			hp_state = TEGRA_HP_IDLE;
 		}
