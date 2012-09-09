@@ -62,8 +62,10 @@ static unsigned int  idle_bottom_freq;
 static unsigned int  idle_top_freq;
 static unsigned long up_delay;
 static unsigned long down_delay;
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 static unsigned long last_change_time;
 static unsigned int  load_sample_rate = 20; /* msec */
+#endif
 static struct workqueue_struct *balanced_wq;
 static struct delayed_work balanced_work;
 static BALANCED_STATE balanced_state;
@@ -92,7 +94,11 @@ static void calculate_load_timer(unsigned long data)
 		do_div(idle_time, elapsed_time);
 		*load = 100 - idle_time;
 	}
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	mod_timer(&load_timer, jiffies + msecs_to_jiffies(load_sample_rate));
+#else
+	mod_timer(&load_timer, jiffies + msecs_to_jiffies(100));
+#endif
 }
 
 static void start_load_timer(void)
@@ -168,7 +174,7 @@ static unsigned int count_slow_cpus(unsigned int limit)
 
 	return cnt;
 }
-
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 #define NR_FSHIFT	2
 static unsigned int nr_run_thresholds[] = {
 /*      1,  2,  3,  4 - on-line cpus target */
@@ -176,6 +182,7 @@ static unsigned int nr_run_thresholds[] = {
 };
 static unsigned int nr_run_hysteresis = 2;	/* 0.5 thread */
 static unsigned int nr_run_last;
+#endif
 
 static CPU_SPEED_BALANCE balanced_speed_balance(void)
 {
@@ -184,12 +191,15 @@ static CPU_SPEED_BALANCE balanced_speed_balance(void)
 	unsigned long skewed_speed = balanced_speed / 2;
 	unsigned int nr_cpus = num_online_cpus();
 	unsigned int max_cpus = pm_qos_request(PM_QOS_MAX_ONLINE_CPUS) ? : 4;
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	unsigned int avg_nr_run = avg_nr_running();
 	unsigned int nr_run;
+#endif
 
 	/* balanced: freq targets for all CPUs are above 50% of highest speed
 	   biased: freq target for at least one CPU is below 50% threshold
 	   skewed: freq targets for at least 2 CPUs are below 25% threshold */
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	for (nr_run = 1; nr_run < ARRAY_SIZE(nr_run_thresholds); nr_run++) {
 		unsigned int nr_threshold = nr_run_thresholds[nr_run - 1];
 		if (nr_run_last <= nr_run)
@@ -201,10 +211,17 @@ static CPU_SPEED_BALANCE balanced_speed_balance(void)
 
 	if (count_slow_cpus(skewed_speed) >= 2 || nr_cpus > max_cpus ||
 		nr_run < nr_cpus)
+#else
+	if (count_slow_cpus(skewed_speed) >= 2 || nr_cpus > max_cpus)
+#endif
 		return CPU_SPEED_SKEWED;
 
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	if (count_slow_cpus(balanced_speed) >= 1 || nr_cpus == max_cpus ||
 		nr_run <= nr_cpus)
+#else
+	if (count_slow_cpus(balanced_speed) >= 1 || nr_cpus == max_cpus)
+#endif
 		return CPU_SPEED_BIASED;
 
 	return CPU_SPEED_BALANCED;
@@ -214,7 +231,9 @@ static void balanced_work_func(struct work_struct *work)
 {
 	bool up = false;
 	unsigned int cpu = nr_cpu_ids;
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	unsigned long now = jiffies;
+#endif
 
 	CPU_SPEED_BALANCE balance;
 
@@ -226,7 +245,11 @@ static void balanced_work_func(struct work_struct *work)
 		if (cpu < nr_cpu_ids) {
 			up = false;
 			queue_delayed_work(balanced_wq,
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 						 &balanced_work, up_delay);
+#else
+						 &balanced_work, down_delay);
+#endif
 		} else
 			stop_load_timer();
 		break;
@@ -259,11 +282,15 @@ static void balanced_work_func(struct work_struct *work)
 		       __func__, balanced_state);
 	}
 
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	if (!up && ((now - last_change_time) < down_delay))
 		cpu = nr_cpu_ids;
+#endif
 
 	if (cpu < nr_cpu_ids) {
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 		last_change_time = now;
+#endif
 		if (up)
 			cpuquiet_wake_cpu(cpu);
 		else
@@ -307,7 +334,11 @@ static int balanced_cpufreq_transition(struct notifier_block *nb,
 			if (cpu_freq <= idle_bottom_freq) {
 				balanced_state = DOWN;
 				queue_delayed_work(balanced_wq,
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 					&balanced_work, up_delay);
+#else
+					&balanced_work, down_delay);
+#endif
 				start_load_timer();
 			}
 			break;
@@ -337,7 +368,9 @@ static void delay_callback(struct cpuquiet_attribute *attr)
 CPQ_BASIC_ATTRIBUTE(balance_level, 0644, uint);
 CPQ_BASIC_ATTRIBUTE(idle_bottom_freq, 0644, uint);
 CPQ_BASIC_ATTRIBUTE(idle_top_freq, 0644, uint);
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 CPQ_BASIC_ATTRIBUTE(load_sample_rate, 0644, uint);
+#endif
 CPQ_ATTRIBUTE(up_delay, 0644, ulong, delay_callback);
 CPQ_ATTRIBUTE(down_delay, 0644, ulong, delay_callback);
 
@@ -347,7 +380,9 @@ static struct attribute *balanced_attributes[] = {
 	&idle_top_freq_attr.attr,
 	&up_delay_attr.attr,
 	&down_delay_attr.attr,
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	&load_sample_rate_attr.attr,
+#endif
 	NULL,
 };
 
@@ -402,7 +437,9 @@ static int balanced_start(void)
 {
 	int err, count;
 	struct cpufreq_frequency_table *table;
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	struct cpufreq_freqs initial_freq;
+#endif
 
 	err = balanced_sysfs();
 	if (err)
@@ -415,8 +452,13 @@ static int balanced_start(void)
 
 	INIT_DELAYED_WORK(&balanced_work, balanced_work_func);
 
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	up_delay = msecs_to_jiffies(100);
 	down_delay = msecs_to_jiffies(500);
+#else
+	up_delay = msecs_to_jiffies(1000);
+	down_delay = msecs_to_jiffies(2000);
+#endif
 
 	table = cpufreq_frequency_get_table(0);
 	for (count = 0; table[count].frequency != CPUFREQ_TABLE_END; count++);
@@ -430,11 +472,13 @@ static int balanced_start(void)
 	init_timer(&load_timer);
 	load_timer.function = calculate_load_timer;
 
+#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
 	/*FIXME: Kick start the state machine by faking a freq notification*/
 	initial_freq.new = cpufreq_get(0);
 	if (initial_freq.new != 0)
 		balanced_cpufreq_transition(NULL, CPUFREQ_RESUMECHANGE,
 						&initial_freq);
+#endif
 	return 0;
 }
 
