@@ -509,7 +509,7 @@ static int bq27541_get_psp(int reg_offset, enum power_supply_property psp,
 
 		if ((ret/10) >= MAXIMAL_VALID_BATTERY_TEMP && bq27541_device->temp_err == 0) {
 			ret=300;
-			BAT_NOTICE("[Warning] set temp=30 (0.1¢XC)");
+			BAT_NOTICE("[Warning] set temp=30 (0.1 XC)");
 			WARN_ON(1);
 			bq27541_device->temp_err++;
 		}
@@ -518,7 +518,7 @@ static int bq27541_get_psp(int reg_offset, enum power_supply_property psp,
 		}
 
 		bq27541_device->old_temperature = val->intval = ret;
-		BAT_NOTICE("temperature= %u (0.1¢XC)\n", val->intval);
+		BAT_NOTICE("temperature= %u (0.1 XC)\n", val->intval);
 	}
 	return 0;
 }
