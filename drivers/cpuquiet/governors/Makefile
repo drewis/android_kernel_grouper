@@ -1,1 +1,1 @@
-obj-y += userspace.o balanced.o
+obj-y += balanced.o userspace.o
