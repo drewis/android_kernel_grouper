@@ -202,7 +202,8 @@ static unsigned int cpufreq_interactive_get_target(
 
 	/* Jump boost policy */
 	if (cpu_load >= hispeed_load || boost_val || boostpulse_boosted_time) {
-		if (pcpu->target_freq <= pcpu->policy->min) {
+		if (pcpu->target_freq < hispeed_freq &&
+		    hispeed_freq < pcpu->policy->max) {
 			target_freq = hispeed_freq;
 		} else {
 			target_freq = pcpu->policy->max * cpu_load / 100;
