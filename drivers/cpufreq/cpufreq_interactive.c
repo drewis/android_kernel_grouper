@@ -86,7 +86,7 @@ static struct cpufreq_interactive_core_lock core_lock;
 
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
-static u64 hispeed_freq;
+static unsigned int hispeed_freq;
 
 /* When the boostpulse was activated */
 static u64 boostpulse_boosted_time;
@@ -225,7 +225,7 @@ static unsigned int cpufreq_interactive_get_target(
 			}
 		}
 	} else {
-		target_freq = pcpu->policy->max * cpu_load / 100;
+		target_freq = hispeed_freq * cpu_load / 100;
 	}
 
 done:
@@ -883,7 +883,7 @@ static struct global_attr midrange_max_boost_attr =
 static ssize_t show_hispeed_freq(struct kobject *kobj,
 				 struct attribute *attr, char *buf)
 {
-	return sprintf(buf, "%llu\n", hispeed_freq);
+	return sprintf(buf, "%u\n", hispeed_freq);
 }
 
 static ssize_t store_hispeed_freq(struct kobject *kobj,
@@ -891,9 +891,9 @@ static ssize_t store_hispeed_freq(struct kobject *kobj,
 				  size_t count)
 {
 	int ret;
-	u64 val;
+	long unsigned int val;
 
-	ret = strict_strtoull(buf, 0, &val);
+	ret = strict_strtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	hispeed_freq = val;
