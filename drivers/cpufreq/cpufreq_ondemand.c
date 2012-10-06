@@ -27,8 +27,11 @@
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 #include <linux/highuid.h>
+#include <linux/clk.h>
 
+#include "../../arch/arm/mach-tegra/clock.h"
 #include "../../arch/arm/mach-tegra/pm.h"
+#include "../../arch/arm/mach-tegra/tegra_pmqos.h"
 
 /*
  * dbs is used in this file as a shortform for demandbased switching
@@ -71,6 +74,10 @@ static unsigned int def_sampling_rate;
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				unsigned int event);
+
+/* lpcpu variables */
+static struct clk *cpu_lp_clk;
+static unsigned int idle_top_freq;
 
 #ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND
 static
@@ -676,7 +683,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
                         if (!is_lp_cluster())
                                 dbs_freq_increase(policy, dbs_tuners_ins.two_phase_freq);
                         else
-                                dbs_freq_increase(policy, 475000);
+                                dbs_freq_increase(policy, idle_top_freq);
 		} else {
 			/* busy phase */
 			if (policy->cur < policy->max)
@@ -1089,6 +1096,9 @@ static int __init cpufreq_gov_dbs_init(void)
 	cputime64_t wall;
 	u64 idle_time;
 	int cpu = get_cpu();
+
+        cpu_lp_clk = clk_get_sys(NULL, "cpu_lp");
+        idle_top_freq = clk_get_max_rate(cpu_lp_clk) / 1000;
 
 	idle_time = get_cpu_idle_time_us(cpu, &wall);
 	put_cpu();
