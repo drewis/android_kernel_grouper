@@ -472,6 +472,13 @@ config TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
 	help
 	 Also will restore to original cpu frequency governor when device is resumed
 
+config TEGRA_VARIANT_INFO
+	bool "Tegra3 variant info"
+	depends on ARCH_TEGRA_3x_SOC
+	default y
+	help
+	  Tegra3 SOC variant info display via debugfs
+
 config TEGRA_STAT_MON
         bool "Enable H/W statistics monitor"
         depends on ARCH_TEGRA_2x_SOC
