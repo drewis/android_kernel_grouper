@@ -450,7 +450,7 @@ static struct attribute *elan_attr[] = {
 
 static struct kobject *android_touch_kobj;
 
-static int elan_ktf3k_touch_sysfs_init(void)
+static int elan_touch_sysfs_init(void)
 {
 	int ret ;
 
@@ -1550,8 +1550,8 @@ static int elan_ktf3k_ts_probe(struct i2c_client *client,
 
 	private_ts = ts;
 
-	//elan_ktf2k_touch_sysfs_init();
-      ts->attrs.attrs = elan_attr;
+	elan_touch_sysfs_init();
+        ts->attrs.attrs = elan_attr;
 	err = sysfs_create_group(&client->dev.kobj, &ts->attrs);
 	if (err) {
 		dev_err(&client->dev, "Not able to create the sysfs\n");
