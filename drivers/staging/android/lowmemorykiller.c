@@ -37,6 +37,7 @@
 #include <linux/sched.h>
 #include <linux/rcupdate.h>
 #include <linux/notifier.h>
+#include <linux/node.h>
 #include <linux/compaction.h>
 
 static uint32_t lowmem_debug_level = 2;
