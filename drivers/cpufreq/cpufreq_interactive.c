@@ -96,10 +96,6 @@ static u64 boostpulse_boosted_time;
 #define MAX_BOOSTPULSE_DURATION		5000000
 static int boostpulse_duration;
 
-/* Boost frequency by boost_factor when CPU load at or above this value. */
-#define DEFAULT_GO_MAXSPEED_LOAD 85
-static unsigned long go_maxspeed_load;
-
 /* Go to hispeed_freq when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 85
 static unsigned long go_hispeed_load;
@@ -132,10 +128,10 @@ static unsigned long min_sample_time;
 static unsigned long timer_rate;
 
 /* Defines to control mid-range frequencies */
-#define DEFAULT_MID_RANGE_GO_MAXSPEED_LOAD 95
+#define DEFAULT_MID_RANGE_GO_HISPEED_LOAD 95
 
 static unsigned long midrange_freq;
-static unsigned long midrange_go_maxspeed_load;
+static unsigned long midrange_go_hispeed_load;
 static unsigned long midrange_max_boost;
 
 /*
@@ -168,7 +164,7 @@ static unsigned int cpufreq_interactive_get_target(
 	struct cpufreq_interactive_cpuinfo *pcpu)
 {
 	unsigned int target_freq;
-	unsigned int maxspeed_load = go_maxspeed_load;
+	unsigned int hispeed_load = go_hispeed_load;
 	unsigned int mboost = max_boost;
 
 	/*
@@ -183,11 +179,11 @@ static unsigned int cpufreq_interactive_get_target(
 	if (boost_factor) {
 
 		if (midrange_freq && pcpu->policy->cur > midrange_freq) {
-			maxspeed_load = midrange_go_maxspeed_load;
+			hispeed_load = midrange_go_hispeed_load;
 			mboost = midrange_max_boost;
 		}
 
-		if (cpu_load >= go_maxspeed_load) {
+		if (cpu_load >= hispeed_load) {
 			target_freq = pcpu->policy->cur * boost_factor;
 
 			if (mboost && target_freq > pcpu->policy->cur + mboost)
@@ -205,7 +201,7 @@ static unsigned int cpufreq_interactive_get_target(
 	}
 
 	/* Jump boost policy */
-	if (cpu_load >= go_hispeed_load || boost_val || boostpulse_boosted_time) {
+	if (cpu_load >= hispeed_load || boost_val || boostpulse_boosted_time) {
 		if (pcpu->target_freq <= pcpu->policy->min) {
 			target_freq = hispeed_freq;
 		} else {
@@ -733,28 +729,6 @@ static int cpufreq_interactive_lock_cores_task(void *data)
 	return 0;
 }
 
-static ssize_t show_go_maxspeed_load(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", go_maxspeed_load);
-}
-
-static ssize_t store_go_maxspeed_load(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	go_maxspeed_load = val;
-	return count;
-}
-
-static struct global_attr go_maxspeed_load_attr = __ATTR(go_maxspeed_load, 0644,
-		show_go_maxspeed_load, store_go_maxspeed_load);
-
 static ssize_t show_midrange_freq(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
 {
@@ -777,13 +751,13 @@ static ssize_t store_midrange_freq(struct kobject *kobj,
 static struct global_attr midrange_freq_attr = __ATTR(midrange_freq, 0644,
 		show_midrange_freq, store_midrange_freq);
 
-static ssize_t show_midrange_go_maxspeed_load(struct kobject *kobj,
+static ssize_t show_midrange_go_hispeed_load(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
 {
-	return sprintf(buf, "%lu\n", midrange_go_maxspeed_load);
+	return sprintf(buf, "%lu\n", midrange_go_hispeed_load);
 }
 
-static ssize_t store_midrange_go_maxspeed_load(struct kobject *kobj,
+static ssize_t store_midrange_go_hispeed_load(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
 	int ret;
@@ -792,13 +766,13 @@ static ssize_t store_midrange_go_maxspeed_load(struct kobject *kobj,
 	ret = strict_strtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
-	midrange_go_maxspeed_load = val;
+	midrange_go_hispeed_load = val;
 	return count;
 }
 
-static struct global_attr midrange_go_maxspeed_load_attr =
-	__ATTR(midrange_go_maxspeed_load, 0644,
-	show_midrange_go_maxspeed_load, store_midrange_go_maxspeed_load);
+static struct global_attr midrange_go_hispeed_load_attr =
+	__ATTR(midrange_go_hispeed_load, 0644,
+	show_midrange_go_hispeed_load, store_midrange_go_hispeed_load);
 
 static ssize_t show_boost_factor(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
@@ -1073,9 +1047,8 @@ static struct global_attr boostpulse =
 	__ATTR(boostpulse, 0200, NULL, store_boostpulse);
 
 static struct attribute *interactive_attributes[] = {
-	&go_maxspeed_load_attr.attr,
 	&midrange_freq_attr.attr,
-	&midrange_go_maxspeed_load_attr.attr,
+	&midrange_go_hispeed_load_attr.attr,
 	&boost_factor_attr.attr,
 	&max_boost_attr.attr,
 	&midrange_max_boost_attr.attr,
@@ -1214,8 +1187,7 @@ static int __init cpufreq_interactive_init(void)
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
-	go_maxspeed_load = DEFAULT_GO_MAXSPEED_LOAD;
-	midrange_go_maxspeed_load = DEFAULT_MID_RANGE_GO_MAXSPEED_LOAD;
+	midrange_go_hispeed_load = DEFAULT_MID_RANGE_GO_HISPEED_LOAD;
 	go_hispeed_load = DEFAULT_GO_HISPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 	above_hispeed_delay_val = DEFAULT_ABOVE_HISPEED_DELAY;
