@@ -8,7 +8,7 @@
 
 DECLARE_EVENT_CLASS(set,
 	TP_PROTO(u32 cpu_id, unsigned long targfreq,
-		unsigned long actualfreq),
+	         unsigned long actualfreq),
 	TP_ARGS(cpu_id, targfreq, actualfreq),
 
 	TP_STRUCT__entry(
@@ -28,13 +28,7 @@ DECLARE_EVENT_CLASS(set,
 	      __entry->actualfreq)
 );
 
-DEFINE_EVENT(set, cpufreq_interactive_up,
-	TP_PROTO(u32 cpu_id, unsigned long targfreq,
-	     unsigned long actualfreq),
-	TP_ARGS(cpu_id, targfreq, actualfreq)
-);
-
-DEFINE_EVENT(set, cpufreq_interactive_down,
+DEFINE_EVENT(set, cpufreq_interactive_setspeed,
 	TP_PROTO(u32 cpu_id, unsigned long targfreq,
 	     unsigned long actualfreq),
 	TP_ARGS(cpu_id, targfreq, actualfreq)
