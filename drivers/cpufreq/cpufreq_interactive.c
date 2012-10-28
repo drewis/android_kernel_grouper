@@ -562,9 +562,14 @@ static ssize_t show_io_is_busy(struct kobject *kobj,
 static ssize_t store_io_is_busy(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
-	if (!strict_strtoul(buf, 0, &io_is_busy))
-		return count;
-	return -EINVAL;
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	io_is_busy = val;
+	return count;
 }
 
 static struct global_attr io_is_busy_attr = __ATTR(io_is_busy, 0644,
