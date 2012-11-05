@@ -1282,8 +1282,8 @@ static int tegra_ehci_resume(struct platform_device *pdev)
 	int ret;
 	u32 project_info = grouper_get_project_id();
 
-//	if (project_info == GROUPER_PROJECT_NAKASI_3G)
-//		baseband_xmm_L3_resume_check();
+	if (project_info == GROUPER_PROJECT_NAKASI_3G)
+		baseband_xmm_L3_resume_check();
 
 	mutex_lock(&tegra->tegra_ehci_hcd_mutex);
 	if ((tegra->bus_suspended) && (tegra->power_down_on_bus_suspend)) {

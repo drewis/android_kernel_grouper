@@ -2327,12 +2327,12 @@ static int uhsic_phy_power_on(struct tegra_usb_phy *phy, bool is_dpd)
 	uhsic_powerup_pmc_wake_detect(phy);
 #endif
 
-//	if (uhsic_config->enable_gpio != -1) {
-//		baseband_xmm_enable_hsic_power(1);
-//		gpio_set_value_cansleep(uhsic_config->enable_gpio, 1);
-//		/* keep hsic reset asserted for 1 ms */
-//		udelay(1000);
-//	}
+	if (uhsic_config->enable_gpio != -1) {
+		baseband_xmm_enable_hsic_power(1);
+		gpio_set_value_cansleep(uhsic_config->enable_gpio, 1);
+		/* keep hsic reset asserted for 1 ms */
+		udelay(1000);
+	}
 
 	val = readl(base + UHSIC_PADS_CFG1);
 	val &= ~(UHSIC_PD_BG | UHSIC_PD_TX | UHSIC_PD_TRK | UHSIC_PD_RX |
@@ -2458,12 +2458,12 @@ static int uhsic_phy_power_off(struct tegra_usb_phy *phy, bool is_dpd)
 	val &= ~UHSIC_PHY_ENABLE;
 	writel(val, base + USB_SUSP_CTRL);
 
-//	if (uhsic_config->enable_gpio != -1) {
-//		gpio_set_value_cansleep(uhsic_config->enable_gpio, 0);
-//		/* keep hsic reset de-asserted for 1 ms */
-//		udelay(1000);
-//		baseband_xmm_enable_hsic_power(0);
-//	}
+	if (uhsic_config->enable_gpio != -1) {
+		gpio_set_value_cansleep(uhsic_config->enable_gpio, 0);
+		/* keep hsic reset de-asserted for 1 ms */
+		udelay(1000);
+		baseband_xmm_enable_hsic_power(0);
+	}
 	if (uhsic_config->post_phy_off && uhsic_config->post_phy_off())
 		return -EAGAIN;
 
