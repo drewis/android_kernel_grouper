@@ -57,6 +57,7 @@ static bool is_suspended;
 static int suspend_index;
 
 static bool force_policy_max = 1;
+static bool coldstart = 1;
 
 #define TEGRA3_OVERCLOCK
 #define TEGRA3_DYNAMIC_EDP_THRES_TEMP (68)
@@ -733,9 +734,12 @@ static int tegra_cpu_init(struct cpufreq_policy *policy)
 	cpumask_copy(policy->related_cpus, cpu_possible_mask);
 
 	if (policy->cpu == 0) {
-		/* set to 1.3GHz stock freq on init */
-		policy->max = 1300000;
 		register_pm_notifier(&tegra_cpu_pm_notifier);
+	}
+
+	if (coldstart == 1) {
+		policy->max = 1300000;
+		coldstart = 0;
 	}
 
 	return 0;
