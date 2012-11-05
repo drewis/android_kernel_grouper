@@ -103,6 +103,7 @@
 #define APSD_DCP		0x02
 #define APSD_OTHER		0x03
 #define APSD_SDP		0x04
+#define APSD_SDP2		0x06    // tmtmtm: USB host mode charging
 #define USB_30		0x20
 #define DCIN_OV_UV_STS		0x50
 #define DELAY_FOR_CURR_LIMIT_RECONF (60)
@@ -941,9 +942,17 @@ static int cable_type_detect(void)
 #ifdef TOUCH_CALLBACK_ENABLED
 	                                    touch_callback(usb_cable);
 #endif
+					// tmtmtm start
+					} else if(retval == APSD_SDP2) {
+						printk("Cable: SDP2 host mode charging\n");
+						success = battery_callback(usb_cable);
+#ifdef TOUCH_CALLBACK_ENABLED
+	                                    touch_callback(usb_cable);
+#endif 
+					// tmtmtm end
 					} else {
 						charger->cur_cable_type = unknow_cable;
-						printk(KERN_INFO "Unkown Plug In Cable type !\n");
+						printk(KERN_INFO "Unkown Plug In Cable type !! retval=%d\n",retval);
 						if (gpio_get_value(dock_in)) {
 							charger->cur_cable_type = usb_cable;
 							success = battery_callback(usb_cable);
