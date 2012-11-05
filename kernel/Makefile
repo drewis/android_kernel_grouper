@@ -109,14 +109,15 @@ obj-$(CONFIG_PADATA) += padata.o
 obj-$(CONFIG_CRASH_DUMP) += crash_dump.o
 obj-$(CONFIG_JUMP_LABEL) += jump_label.o
 
-ifneq ($(CONFIG_SCHED_OMIT_FRAME_POINTER),y)
+#ifneq ($(CONFIG_SCHED_OMIT_FRAME_POINTER),y)
 # According to Alan Modra <alan@linuxcare.com.au>, the -fno-omit-frame-pointer is
 # needed for x86 only.  Why this used to be enabled for all architectures is beyond
 # me.  I suspect most platforms don't need this, but until we know that for sure
 # I turn this off for IA-64 only.  Andreas Schwab says it's also needed on m68k
 # to get a correct value for the wait-channel (WCHAN in ps). --davidm
-CFLAGS_sched.o := $(PROFILING) -fno-omit-frame-pointer
-endif
+#CFLAGS_sched.o := $(PROFILING) -fno-omit-frame-pointer
+CFLAGS_sched.o := -O2 -fomit-frame-pointer -mtune=cortex-a9 -march=armv7-a -ftree-vectorize
+#endif
 
 $(obj)/configs.o: $(obj)/config_data.h
 
