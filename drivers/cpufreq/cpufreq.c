@@ -614,7 +614,7 @@ static ssize_t show_UV_mV_table(struct cpufreq_policy *policy, char *buf)
 	struct clk *cpu_clk_g = tegra_get_clock_by_name("cpu_g");
 
 	/* find how many actual entries there are */
-		i = cpu_clk_g->dvfs->num_freqs;
+		i = cpu_clk_g->dvfs->num_freqs - 3;
 
 	for(i--; i >=0; i--) {
 		out += sprintf(out, "%lumhz: %i mV\n",
@@ -635,7 +635,7 @@ static ssize_t store_UV_mV_table(struct cpufreq_policy *policy, char *buf, size_
 	struct clk *cpu_clk_g = tegra_get_clock_by_name("cpu_g");
 
 	/* find how many actual entries there are */
-	i = cpu_clk_g->dvfs->num_freqs;
+	i = cpu_clk_g->dvfs->num_freqs - 3;
 
 	for(i--; i >= 0; i--) {
 
