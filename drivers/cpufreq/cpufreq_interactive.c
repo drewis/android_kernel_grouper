@@ -83,7 +83,7 @@ static struct cpufreq_interactive_core_lock core_lock;
 static unsigned int hispeed_freq = 1000000;
 
 /* CPU will be boosted to this freq - default 1000Mhz - when an input event is detected */ 
-static unsigned int input_boost_freq = 860000;
+static unsigned int input_boost_freq = 620000;
 
 /* Boost frequency by boost_factor when CPU load at or above this value. */
 #define DEFAULT_GO_MAXSPEED_LOAD 85
@@ -94,7 +94,7 @@ static unsigned long go_maxspeed_load;
 static unsigned long go_hispeed_load;
 
 /* Base of exponential raise to max speed; if 0 - jump to maximum */
-static unsigned long boost_factor;
+static unsigned long boost_factor = 2;
 
 /* Max frequency boost in Hz; if 0 - no max is enforced */
 static unsigned long max_boost;
@@ -130,7 +130,7 @@ static unsigned long above_hispeed_delay_val;
 /*
  * Boost pulse to hispeed on touchscreen input.
  */
-static int input_boost_val;
+static int input_boost_val = 1;
 
 struct cpufreq_interactive_inputopen {
 	struct input_handle *handle;
