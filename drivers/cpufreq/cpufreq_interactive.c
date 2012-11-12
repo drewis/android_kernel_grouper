@@ -582,7 +582,7 @@ static void cpufreq_interactive_boost(void)
 		 * validated.
 		 */
 
-		pcpu->floor_freq = hispeed_freq;
+		pcpu->floor_freq = input_boost_freq;
 		pcpu->floor_validate_time = ktime_to_us(ktime_get());
 	}
 
