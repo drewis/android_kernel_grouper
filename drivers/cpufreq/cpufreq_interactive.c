@@ -187,7 +187,11 @@ static unsigned int cpufreq_interactive_get_target(
 			}
 		}
 	} else {
-		target_freq = hispeed_freq * cpu_load / 100;
+		if (hispeed_freq > input_boost_freq) {
+			target_freq = ((hispeed_freq + input_boost_freq) / 2) * cpu_load / 100;
+		} else {
+			target_freq = hispeed_freq * cpu_load / 100;
+		}
 	}
 
 	target_freq = min(target_freq, pcpu->policy->max);
