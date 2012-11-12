@@ -85,28 +85,12 @@ static unsigned int hispeed_freq = 1000000;
 /* CPU will be boosted to this freq - default 1000Mhz - when an input event is detected */ 
 static unsigned int input_boost_freq = 620000;
 
-/* Boost frequency by boost_factor when CPU load at or above this value. */
-#define DEFAULT_GO_MAXSPEED_LOAD 85
-static unsigned long go_maxspeed_load;
-
 /* Go to hispeed_freq when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 85
 static unsigned long go_hispeed_load;
 
-/* Base of exponential raise to max speed; if 0 - jump to maximum */
-static unsigned long boost_factor = 2;
-
-/* Max frequency boost in Hz; if 0 - no max is enforced */
-static unsigned long max_boost;
-
 /* Consider IO as busy */
 static unsigned long io_is_busy;
-
-/*
- * Targeted sustainable load relatively to current frequency.
- * If 0, target is set realtively to the max speed
- */
-static unsigned long sustain_load;
 
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
@@ -171,28 +155,6 @@ static unsigned int cpufreq_interactive_get_target(
 	 */
 	if (load_since_change > cpu_load)
 		cpu_load = load_since_change;
-    
-	/* Exponential boost policy */
-	if (boost_factor) {
-
-		if (cpu_load >= go_maxspeed_load) {
-			target_freq = pcpu->policy->cur * boost_factor;
-
-			if (max_boost &&
-				target_freq > pcpu->policy->cur + max_boost)
-
-				target_freq = pcpu->policy->cur + max_boost;
-		} else {
-
-			if (!sustain_load)
-				sustain_load = 100;
-
-			target_freq =
-				(pcpu->policy->cur * cpu_load / sustain_load);
-		}
-
-		goto done;
-	}
 
 	/* Jump boost policy */
 	if (cpu_load >= go_hispeed_load || boost_val) {
@@ -223,7 +185,6 @@ static unsigned int cpufreq_interactive_get_target(
 		target_freq = pcpu->policy->max * cpu_load / 100;
 	}
 
-done:
 	target_freq = min(target_freq, pcpu->policy->max);
 	return target_freq;
 }
@@ -770,28 +731,6 @@ static struct input_handler cpufreq_interactive_input_handler = {
 	.id_table       = cpufreq_interactive_ids,
 };
 
-static ssize_t show_go_maxspeed_load(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", go_maxspeed_load);
-}
-
-static ssize_t store_go_maxspeed_load(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	go_maxspeed_load = val;
-	return count;
-}
-
-static struct global_attr go_maxspeed_load_attr = __ATTR(go_maxspeed_load, 0644,
-		show_go_maxspeed_load, store_go_maxspeed_load);
-
 static ssize_t show_input_boost(struct kobject *kobj, struct attribute *attr,
 				char *buf)
 {
@@ -813,28 +752,6 @@ static ssize_t store_input_boost(struct kobject *kobj, struct attribute *attr,
 
 define_one_global_rw(input_boost);
 
-static ssize_t show_boost_factor(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", boost_factor);
-}
-
-static ssize_t store_boost_factor(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	boost_factor = val;
-	return count;
-}
-
-static struct global_attr boost_factor_attr = __ATTR(boost_factor, 0644,
-		show_boost_factor, store_boost_factor);
-
 static ssize_t show_io_is_busy(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
 {
@@ -851,50 +768,6 @@ static ssize_t store_io_is_busy(struct kobject *kobj,
 
 static struct global_attr io_is_busy_attr = __ATTR(io_is_busy, 0644,
 		show_io_is_busy, store_io_is_busy);
-
-static ssize_t show_sustain_load(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", sustain_load);
-}
-
-static ssize_t store_sustain_load(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	sustain_load = val;
-	return count;
-}
-
-static struct global_attr sustain_load_attr = __ATTR(sustain_load, 0644,
-		show_sustain_load, store_sustain_load);
-
-static ssize_t show_max_boost(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", max_boost);
-}
-
-static ssize_t store_max_boost(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	max_boost = val;
-	return count;
-}
-
-static struct global_attr max_boost_attr = __ATTR(max_boost, 0644,
-		show_max_boost, store_max_boost);
 
 static ssize_t show_hispeed_freq(struct kobject *kobj,
 				 struct attribute *attr, char *buf)
@@ -1039,11 +912,7 @@ define_one_global_rw(boost);
 
 static struct attribute *interactive_attributes[] = {
 	&input_boost_freq_attr.attr,
-	&go_maxspeed_load_attr.attr,
-	&boost_factor_attr.attr,
-	&max_boost_attr.attr,
 	&io_is_busy_attr.attr,
-	&sustain_load_attr.attr,
 	&hispeed_freq_attr.attr,
 	&go_hispeed_load_attr.attr,
 	&above_hispeed_delay.attr,
@@ -1190,7 +1059,6 @@ static int __init cpufreq_interactive_init(void)
 	 */ 
 	struct sched_param param = { .sched_priority = MAX_USER_RT_PRIO-1 };
 
-	go_maxspeed_load = DEFAULT_GO_MAXSPEED_LOAD;
 	go_hispeed_load = DEFAULT_GO_HISPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 	above_hispeed_delay_val = DEFAULT_ABOVE_HISPEED_DELAY;
