@@ -86,7 +86,7 @@ static unsigned int hispeed_freq = 1100000;
 static unsigned int input_boost_freq = 620000;
 
 /* Go to hispeed_freq when CPU load at or above this value. */
-#define DEFAULT_GO_HISPEED_LOAD 85
+#define DEFAULT_GO_HISPEED_LOAD 80
 static unsigned long go_hispeed_load;
 
 /* Consider IO as busy */
