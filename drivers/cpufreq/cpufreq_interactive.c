@@ -160,12 +160,7 @@ static unsigned int cpufreq_interactive_get_target(
 	if (cpu_load >= go_hispeed_load || boost_val) {
 		if (pcpu->target_freq < hispeed_freq &&
 			hispeed_freq < pcpu->policy->max) {
-			if (pcpu->target_freq < input_boost_freq &&
-				input_boost_freq < pcpu->policy->max) {
-					target_freq = min(hispeed_freq,input_boost_freq);
-			} else {
-		  		target_freq = hispeed_freq;
-				}
+		  target_freq = hispeed_freq;
 		} else {
 			target_freq = pcpu->policy->max * cpu_load / 100;
 
