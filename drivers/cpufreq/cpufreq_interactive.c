@@ -494,9 +494,7 @@ static ssize_t show_boost_factor(struct kobject *kobj,
 static ssize_t store_boost_factor(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
-	if (!strict_strtoul(buf, 0, &boost_factor))
-		return count;
-	return -EINVAL;
+	return strict_strtoul(buf, 0, &boost_factor);
 }
 
 static struct global_attr boost_factor_attr = __ATTR(boost_factor, 0644,
@@ -511,9 +509,7 @@ static ssize_t show_max_boost(struct kobject *kobj,
 static ssize_t store_max_boost(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
-	if (!strict_strtoul(buf, 0, &max_boost))
-		return count;
-	return -EINVAL;
+	return strict_strtoul(buf, 0, &max_boost);
 }
 
 static struct global_attr max_boost_attr = __ATTR(max_boost, 0644,
@@ -529,9 +525,7 @@ static ssize_t show_sustain_load(struct kobject *kobj,
 static ssize_t store_sustain_load(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
-	if (!strict_strtoul(buf, 0, &sustain_load))
-		return count;
-	return -EINVAL;
+	return strict_strtoul(buf, 0, &sustain_load);
 }
 
 static struct global_attr sustain_load_attr = __ATTR(sustain_load, 0644,
