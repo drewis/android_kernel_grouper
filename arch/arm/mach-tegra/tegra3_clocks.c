@@ -3905,7 +3905,7 @@ static struct clk tegra_clk_cclk_lp = {
 	.inputs	= mux_cclk_lp,
 	.reg	= 0x370,
 	.ops	= &tegra_super_ops,
-	.max_rate = 620000000,
+	.max_rate = 720000000,
 };
 
 static struct clk tegra_clk_sclk = {
@@ -3933,7 +3933,7 @@ static struct clk tegra_clk_virtual_cpu_lp = {
 	.name      = "cpu_lp",
 	.parent    = &tegra_clk_cclk_lp,
 	.ops       = &tegra_cpu_ops,
-	.max_rate  = 620000000,
+	.max_rate  = 720000000,
 	.u.cpu = {
 		.main      = &tegra_pll_x,
 		.backup    = &tegra_pll_p,
@@ -4644,15 +4644,21 @@ static struct cpufreq_frequency_table freq_table_1p6GHz[] = {
 	{ 3,  340000 },
 	{ 4,  475000 },
 #ifdef CONFIG_LP_OVERCLOCK
+#ifdef CONFIG_LP_OC_700
+	{ 5,  550000 },
+	{ 5,  700000 },
+	{ 7,  900000 },
+	{ 8, 1000000 },
+	{ 9, 1100000 },
+	{10, 1200000 },
+	{11, 1300000 },
+	{12, 1400000 },
+	{13, 1500000 },
+	{14, 1600000 },
+	{15, CPUFREQ_TABLE_END },
+#endif
 #ifdef CONFIG_LP_OC_620
 	{ 5,  620000 },
-#endif
-#ifdef CONFIG_LP_OC_550
-	{ 5,  550000 },
-#endif
-#else
-	{ 5,  620000 },
-#endif
 	{ 6,  860000 },
 	{ 7, 1000000 },
 	{ 8, 1100000 },
@@ -4662,6 +4668,31 @@ static struct cpufreq_frequency_table freq_table_1p6GHz[] = {
 	{12, 1500000 },
 	{13, 1600000 },
 	{14, CPUFREQ_TABLE_END },
+#endif
+#ifdef CONFIG_LP_OC_550
+	{ 5,  550000 },
+	{ 6,  860000 },
+	{ 7, 1000000 },
+	{ 8, 1100000 },
+	{ 9, 1200000 },
+	{10, 1300000 },
+	{11, 1400000 },
+	{12, 1500000 },
+	{13, 1600000 },
+	{14, CPUFREQ_TABLE_END },
+#endif
+#else
+	{ 5,  620000 },
+	{ 6,  860000 },
+	{ 7, 1000000 },
+	{ 8, 1100000 },
+	{ 9, 1200000 },
+	{10, 1300000 },
+	{11, 1400000 },
+	{12, 1500000 },
+	{13, 1600000 },
+	{14, CPUFREQ_TABLE_END },
+#endif
 };
 
 static struct cpufreq_frequency_table freq_table_1p7GHz[] = {
