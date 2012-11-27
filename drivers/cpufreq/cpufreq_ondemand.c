@@ -38,8 +38,8 @@
  * It helps to keep variable names smaller, simpler
  */
 
-#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
-#define DEF_FREQUENCY_UP_THRESHOLD		(80)
+#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(3)
+#define DEF_FREQUENCY_UP_THRESHOLD		(95)
 #define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(3)
@@ -146,7 +146,7 @@ static struct dbs_tuners {
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
-	.two_phase_freq = 0,
+	.two_phase_freq = 1100000,
 #endif
 	.touch_poke = 1,
 	.ui_sampling_rate = DEF_UI_DYNAMIC_SAMPLING_RATE,
@@ -324,7 +324,7 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 }
 #endif
 
-static unsigned int Touch_poke_attr[4] = {1300000, 880000, 0, 0};
+static unsigned int Touch_poke_attr[4] = {1100000, 860000, 0, 0};
 static unsigned int Touch_poke_boost_duration_ms = 0;
 static unsigned long Touch_poke_boost_till_jiffies = 0;
 
@@ -896,7 +896,10 @@ static void dbs_refresh_callback(struct work_struct *unused)
 	/* We poke the frequency base on the online cpu number */
 	nr_cpus = num_online_cpus();
 
-	touch_poke_freq = Touch_poke_attr[nr_cpus-1];
+	if (!is_lp_cluster())
+		touch_poke_freq = Touch_poke_attr[nr_cpus-1];
+	else
+		touch_poke_freq = idle_top_freq;
 
 	if(touch_poke_freq == 0 || policy->cur >= touch_poke_freq){
 		unlock_policy_rwsem_write(cpu);
