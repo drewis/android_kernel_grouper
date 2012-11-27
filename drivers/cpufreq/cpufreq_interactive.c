@@ -83,7 +83,19 @@ static struct cpufreq_interactive_core_lock core_lock;
 static unsigned int hispeed_freq = 1100000;
 
 /* CPU will be boosted to this freq - default 1000Mhz - when an input event is detected */ 
+#ifdef CONFIG_LP_OVERCLOCK
+#ifdef CONFIG_LP_OC_700
+static unsigned int input_boost_freq = 700000;
+#endif
+#ifdef CONFIG_LP_OC_620
 static unsigned int input_boost_freq = 620000;
+#endif
+#ifdef CONFIG_LP_OC_550
+static unsigned int input_boost_freq = 550000;
+#endif
+#else
+static unsigned int input_boost_freq = 475000;
+#endif
 
 /* Go to hispeed_freq when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 80
