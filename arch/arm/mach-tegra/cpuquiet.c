@@ -39,7 +39,7 @@
 
 #define INITIAL_STATE		TEGRA_CPQ_IDLE
 #define UP_DELAY_MS		70
-#define DOWN_DELAY_MS		2000
+#define DOWN_DELAY_MS		500
 
 static struct mutex *tegra3_cpu_lock;
 static struct workqueue_struct *cpuquiet_wq;
