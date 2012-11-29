@@ -87,6 +87,9 @@ static unsigned int hispeed_freq = 1100000;
 #ifdef CONFIG_LP_OC_700
 static unsigned int input_boost_freq = 700000;
 #endif
+#ifdef CONFIG_LP_OC_666
+static unsigned int input_boost_freq = 666000;
+#endif
 #ifdef CONFIG_LP_OC_620
 static unsigned int input_boost_freq = 620000;
 #endif

@@ -303,6 +303,12 @@ choice
 		bool "484 MHz"
 	config GPU_OC_520
 		bool "520 MHz"
+	config GPU_OC_600
+		bool "600 MHz"
+	config GPU_OC_666
+		bool "666 MHz"
+	config GPU_OC_700
+		bool "700 MHz"
 
 endchoice
 
@@ -329,6 +335,8 @@ choice
 		bool "550 MHz"
 	config LP_OC_620
 		bool "620 MHz"
+	config LP_OC_666
+		bool "666 MHz"
 	config LP_OC_700
 		bool "700 MHz"
 
