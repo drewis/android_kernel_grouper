@@ -31,9 +31,17 @@
 #include <linux/input.h>
 #include <asm/cputime.h>
 #include <linux/pm_qos_params.h>
+#include <linux/clk.h>
+
+#include "../../arch/arm/mach-tegra/clock.h"
+#include "../../arch/arm/mach-tegra/pm.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
+
+/* lpcpu variables */
+static struct clk *cpu_lp_clk;
+static unsigned int idle_top_freq;
 
 static atomic_t active_count = ATOMIC_INIT(0);
 
@@ -80,28 +88,10 @@ struct cpufreq_interactive_core_lock {
 static struct cpufreq_interactive_core_lock core_lock;
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
-static unsigned int hispeed_freq = 1100000;
-
-/* CPU will be boosted to this freq - default 1000Mhz - when an input event is detected */ 
-#ifdef CONFIG_LP_OVERCLOCK
-#ifdef CONFIG_LP_OC_700
-static unsigned int input_boost_freq = 700000;
-#endif
-#ifdef CONFIG_LP_OC_666
-static unsigned int input_boost_freq = 666000;
-#endif
-#ifdef CONFIG_LP_OC_620
-static unsigned int input_boost_freq = 620000;
-#endif
-#ifdef CONFIG_LP_OC_550
-static unsigned int input_boost_freq = 550000;
-#endif
-#else
-static unsigned int input_boost_freq = 475000;
-#endif
+static unsigned int hispeed_freq = 1300000;
 
 /* Go to hispeed_freq when CPU load at or above this value. */
-#define DEFAULT_GO_HISPEED_LOAD 80
+#define DEFAULT_GO_HISPEED_LOAD 85
 static unsigned long go_hispeed_load;
 
 /* Consider IO as busy */
@@ -110,13 +100,13 @@ static unsigned long io_is_busy;
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
  */
-#define DEFAULT_MIN_SAMPLE_TIME 30000;
+#define DEFAULT_MIN_SAMPLE_TIME 60000;
 static unsigned long min_sample_time;
 
 /*
  * The sample rate of the timer used to increase frequency
  */
-#define DEFAULT_TIMER_RATE 20000;
+#define DEFAULT_TIMER_RATE 40000;
 static unsigned long timer_rate;
 
 /*
@@ -197,11 +187,7 @@ static unsigned int cpufreq_interactive_get_target(
 			}
 		}
 	} else {
-		if (hispeed_freq > input_boost_freq) {
-			target_freq = ((hispeed_freq + input_boost_freq) / 2) * cpu_load / 100;
-		} else {
-			target_freq = hispeed_freq * cpu_load / 100;
-		}
+		target_freq = idle_top_freq * cpu_load / 100;
 	}
 
 	target_freq = min(target_freq, pcpu->policy->max);
@@ -540,10 +526,14 @@ static int cpufreq_interactive_speedchange_task(void *data)
 	return 0;
 }
 
+static unsigned int Touch_poke_attr[4] = {1100000, 860000, 0, 0};
+
 static void cpufreq_interactive_boost(void)
 {
 	int i;
 	int anyboost = 0;
+	unsigned int nr_cpus;
+	unsigned int input_boost_freq;
 	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
@@ -552,6 +542,13 @@ static void cpufreq_interactive_boost(void)
 	for_each_online_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
 
+	nr_cpus = num_online_cpus();
+
+		if (!is_lp_cluster()) {
+			input_boost_freq = Touch_poke_attr[nr_cpus-1];
+		} else {
+			input_boost_freq = idle_top_freq;
+			}
 		if (pcpu->target_freq < input_boost_freq) {
 			pcpu->target_freq = input_boost_freq;
 			cpumask_set_cpu(i, &speedchange_cpumask);
@@ -636,29 +633,6 @@ static int cpufreq_interactive_lock_cores_task(void *data)
 	}
 	return 0;
 }
-
-static ssize_t show_input_boost_freq(struct kobject *kobj,
-				 struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%u\n", input_boost_freq);
-}
-
-static ssize_t store_input_boost_freq(struct kobject *kobj,
-				  struct attribute *attr, const char *buf,
-				  size_t count)
-{
-	int ret;
-	long unsigned int val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	input_boost_freq = val;
-	return count;
-}
-
-static struct global_attr input_boost_freq_attr = __ATTR(input_boost_freq, 0644,
-		show_input_boost_freq, store_input_boost_freq);
 
 /*
  * Pulsed boost on input event raises CPUs to hispeed_freq and lets
@@ -930,7 +904,6 @@ static ssize_t store_boost(struct kobject *kobj, struct attribute *attr,
 define_one_global_rw(boost);
 
 static struct attribute *interactive_attributes[] = {
-	&input_boost_freq_attr.attr,
 	&io_is_busy_attr.attr,
 	&hispeed_freq_attr.attr,
 	&go_hispeed_load_attr.attr,
@@ -1077,6 +1050,9 @@ static int __init cpufreq_interactive_init(void)
 	 * kernel thread above user threads which will, by my reason, increase interactvitiy.
 	 */ 
 	struct sched_param param = { .sched_priority = MAX_USER_RT_PRIO-1 };
+
+        cpu_lp_clk = clk_get_sys(NULL, "cpu_lp");
+        idle_top_freq = clk_get_max_rate(cpu_lp_clk) / 1000;
 
 	go_hispeed_load = DEFAULT_GO_HISPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
