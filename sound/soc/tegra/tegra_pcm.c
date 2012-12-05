@@ -40,6 +40,12 @@
 
 #include "tegra_pcm.h"
 
+#ifdef CONFIG_AUDIO_MIN_PERFLOCK
+#include <linux/pm_qos_params.h>
+#define PLAYBACK_CPU_FREQ_MAX 370000
+static struct pm_qos_request_list playback_cpu_freq_req;
+#endif
+
 #define DRV_NAME "tegra-pcm-audio"
 
 #define PERIOD_BYTES_MAX	(PAGE_SIZE * 2)
@@ -146,6 +152,10 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 	if (prtd == NULL)
 		return -ENOMEM;
 
+#ifdef CONFIG_AUDIO_MIN_PERFLOCK
+	pm_qos_update_request(&playback_cpu_freq_req,
+				(s32)PLAYBACK_CPU_FREQ_MAX);
+#endif
 	runtime->private_data = prtd;
 	prtd->substream = substream;
 
@@ -197,6 +207,11 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct tegra_runtime_data *prtd = runtime->private_data;
+
+#ifdef CONFIG_AUDIO_MIN_PERFLOCK
+	pm_qos_update_request(&playback_cpu_freq_req,
+				(s32)PM_QOS_CPU_FREQ_MIN_DEFAULT_VALUE);
+#endif
 
 	if (prtd->dma_chan)
 		tegra_dma_free_channel(prtd->dma_chan);
@@ -430,12 +445,20 @@ static struct platform_driver tegra_pcm_driver = {
 
 static int __init snd_tegra_pcm_init(void)
 {
+#ifdef CONFIG_AUDIO_MIN_PERFLOCK
+	pm_qos_add_request(&playback_cpu_freq_req,
+			PM_QOS_CPU_FREQ_MIN,
+			(s32)PLAYBACK_CPU_FREQ_MAX);
+#endif
 	return platform_driver_register(&tegra_pcm_driver);
 }
 module_init(snd_tegra_pcm_init);
 
 static void __exit snd_tegra_pcm_exit(void)
 {
+#ifdef CONFIG_AUDIO_MIN_PERFLOCK
+	pm_qos_remove_request(&playback_cpu_freq_req);
+#endif
 	platform_driver_unregister(&tegra_pcm_driver);
 }
 module_exit(snd_tegra_pcm_exit);

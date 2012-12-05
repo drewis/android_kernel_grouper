@@ -230,6 +230,17 @@ config SND_SOC_TEGRA_MAX98095
 	  Say Y or M here if you want to add support for SoC audio on Tegra
 	  boards using the MAX98095 codec. Currently, only supported board is
 	  Cardhu.
+
 config HEADSET_FUNCTION
     tristate "Headset detection function"
     default n
+
+config AUDIO_MIN_PERFLOCK
+
+	bool "Minimum Audio Playback performance lock
+	depends on SND_SOC_TEGRA_RT5640
+	default n
+	help
+	  Tegra3 minimum Audio Performance Lock to prevent audio playback
+	  underruns
+
