@@ -42,7 +42,7 @@
 
 #ifdef CONFIG_AUDIO_MIN_PERFLOCK
 #include <linux/pm_qos_params.h>
-#define PLAYBACK_CPU_FREQ_MAX 370000
+#define PLAYBACK_CPU_FREQ_MIN 340000
 static struct pm_qos_request_list playback_cpu_freq_req;
 #endif
 
@@ -154,7 +154,7 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 
 #ifdef CONFIG_AUDIO_MIN_PERFLOCK
 	pm_qos_update_request(&playback_cpu_freq_req,
-				(s32)PLAYBACK_CPU_FREQ_MAX);
+				(s32)PLAYBACK_CPU_FREQ_MIN);
 #endif
 	runtime->private_data = prtd;
 	prtd->substream = substream;
@@ -448,7 +448,7 @@ static int __init snd_tegra_pcm_init(void)
 #ifdef CONFIG_AUDIO_MIN_PERFLOCK
 	pm_qos_add_request(&playback_cpu_freq_req,
 			PM_QOS_CPU_FREQ_MIN,
-			(s32)PLAYBACK_CPU_FREQ_MAX);
+			(s32)PLAYBACK_CPU_FREQ_MIN);
 #endif
 	return platform_driver_register(&tegra_pcm_driver);
 }
