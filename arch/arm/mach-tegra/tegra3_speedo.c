@@ -440,6 +440,10 @@ void tegra_init_speedo_data(void)
 			break;
 		}
 	}
+#ifdef CONFIG_TEGRA_VARIANT_INFO
+	cpu_process_id = iv -1;
+	orig_cpu_process_id = cpu_process_id;
+#endif
 	cpu_process_id = 2; //iv -1;
 
 
