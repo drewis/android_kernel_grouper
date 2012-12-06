@@ -45,7 +45,8 @@ config ARCH_TEGRA_3x_SOC
 	select PCI_MSI if TEGRA_PCI
 	select ARM_ERRATA_754322
 	select ARM_ERRATA_764369
-	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD && !TEGRA_RAIL_OFF_MULTIPLE_CPUS
+	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD
+#	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD && !TEGRA_RAIL_OFF_MULTIPLE_CPUS
 	select CPA
 	help
 	  Support for NVIDIA Tegra 3 family of SoCs, based upon the
@@ -297,6 +298,8 @@ choice
 
 	  If you are not sure what you are doing, leave this
 	  option alone!
+	config GPU_OC_332
+		bool "332 MHz"
 	config GPU_OC_446
 		bool "446 MHz"
 	config GPU_OC_484
@@ -339,8 +342,23 @@ choice
 		bool "666 MHz"
 	config LP_OC_700
 		bool "700 MHz"
+	config LP_OC_740
+		bool "740 MHz"
 
 endchoice
+
+config LP_ONLY
+	bool "Only use the Low-Power companion core"
+	depends on TEGRA_SILICON_PLATFORM
+	default n		
+
+config AUDIO_MIN_PERFLOCK
+	bool "Minimum Audio Playback performance lock"
+	depends on SND_SOC_TEGRA_RT5640
+	default n
+	help
+	  Tegra3 minimum Audio Performance Lock to prevent audio playback
+	  underruns		
 	  
 config TEGRA_CPU_DVFS
 	bool "Enable voltage scaling on Tegra CPU"
@@ -574,7 +592,9 @@ config TEGRA_LP2_ARM_TWD
 	bool
 
 config TEGRA_RAIL_OFF_MULTIPLE_CPUS
-	bool
+	bool "Tegra Rail Off Multiple CPUs"
+	depends on TEGRA_SILICON_PLATFORM
+	default n
 
 config TEGRA_SLOW_CSITE
 	bool "lower csite clock to 1 Mhz to reduce its power consumption"
