@@ -3918,7 +3918,7 @@ static struct clk tegra_clk_cclk_lp = {
 	.inputs	= mux_cclk_lp,
 	.reg	= 0x370,
 	.ops	= &tegra_super_ops,
-	.max_rate = 720000000,
+	.max_rate = 740000000,
 };
 
 static struct clk tegra_clk_sclk = {
@@ -3946,7 +3946,7 @@ static struct clk tegra_clk_virtual_cpu_lp = {
 	.name      = "cpu_lp",
 	.parent    = &tegra_clk_cclk_lp,
 	.ops       = &tegra_cpu_ops,
-	.max_rate  = 700000000,
+	.max_rate  = 740000000,
 	.u.cpu = {
 		.main      = &tegra_pll_x,
 		.backup    = &tegra_pll_p,
@@ -4657,6 +4657,9 @@ static struct cpufreq_frequency_table freq_table_1p6GHz[] = {
 	{ 3,  340000 },
 	{ 4,  475000 },
 #ifdef CONFIG_LP_OVERCLOCK
+#ifdef CONFIG_LP_OC_740
+	{ 5,  740000 },
+#endif
 #ifdef CONFIG_LP_OC_700
 	{ 5,  700000 },
 #endif
