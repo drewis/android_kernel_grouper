@@ -39,9 +39,9 @@
 #include "clock.h"
 
 #define INITIAL_STATE		TEGRA_HP_DISABLED
-#define UP2G0_DELAY_MS		2000
-#define UP2Gn_DELAY_MS		500
-#define DOWN_DELAY_MS		1000
+#define UP2G0_DELAY_MS		1000
+#define UP2Gn_DELAY_MS		100
+#define DOWN_DELAY_MS		500
 
 static struct mutex *tegra3_cpu_lock;
 
@@ -299,7 +299,6 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 		break;
 	case TEGRA_HP_UP:
 		if (is_lp_cluster() && !no_lp) {
-#ifndef CONFIG_TEGRA_LP_ONLY
 			if(!clk_set_parent(cpu_clk, cpu_g_clk)) {
 #ifndef CONFIG_TEGRA_RUNNABLE_THREAD
 				last_change_time = now;
@@ -309,7 +308,6 @@ static void tegra_auto_hotplug_work_func(struct work_struct *work)
 				/* catch-up with governor target speed */
 				tegra_cpu_set_speed_cap(NULL);
 			}
-#endif
 		} else {
 			switch (tegra_cpu_speed_balance()) {
 			/* cpu speed is up and balanced - one more on-line */
@@ -366,7 +364,6 @@ static int min_cpus_notify(struct notifier_block *nb, unsigned long n, void *p)
 
 	if ((n >= 1) && is_lp_cluster()) {
 		/* make sure cpu rate is within g-mode range before switching */
-#ifndef CONFIG_TEGRA_LP_ONLY
 		unsigned int speed = max(
 			tegra_getspeed(0), clk_get_min_rate(cpu_g_clk) / 1000);
 		tegra_update_cpu_speed(speed);
@@ -378,7 +375,6 @@ static int min_cpus_notify(struct notifier_block *nb, unsigned long n, void *p)
 			hp_stats_update(CONFIG_NR_CPUS, false);
 			hp_stats_update(0, true);
 		}
-#endif
 	}
 	/* update governor state machine */
 	tegra_cpu_set_speed_cap(NULL);
@@ -404,14 +400,12 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 		hp_state = TEGRA_HP_IDLE;
 
 		/* Switch to G-mode if suspend rate is high enough */
-#ifndef CONFIG_TEGRA_LP_ONLY
 		if (is_lp_cluster() && (cpu_freq >= idle_bottom_freq)) {
 			if (!clk_set_parent(cpu_clk, cpu_g_clk)) {
 				hp_stats_update(CONFIG_NR_CPUS, false);
 				hp_stats_update(0, true);
 			}
 		}
-#endif
 		return;
 	}
 
