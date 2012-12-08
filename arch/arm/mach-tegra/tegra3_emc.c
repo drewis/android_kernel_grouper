@@ -890,8 +890,8 @@ static bool is_emc_bridge(void)
 		return false;
 
 	mv = tegra_dvfs_predict_millivolts(emc, rate);
-	if (IS_ERR_VALUE(mv) || (mv > TEGRA_EMC_BRIDGE_MVOLTS_MIN))
-		return false;
+//	if (IS_ERR_VALUE(mv) || (mv > TEGRA_EMC_BRIDGE_MVOLTS_MIN))
+//		return false;
 
 	if (clk_set_rate(bridge, rate))
 		return false;
@@ -1030,13 +1030,13 @@ void tegra_init_emc(const struct tegra_emc_table *table, int table_size)
 
 	adjust_emc_dvfs_table(tegra_emc_table, tegra_emc_table_size);
 	mv = tegra_dvfs_predict_millivolts(emc, max_rate * 1000);
-	if ((mv <= 0) || (mv > emc->dvfs->max_millivolts)) {
-		tegra_emc_table = NULL;
-		pr_err("tegra: invalid EMC DFS table: maximum rate %lu kHz does"
-		       " not match nominal voltage %d\n",
-		       max_rate, emc->dvfs->max_millivolts);
-		return;
-	}
+//	if ((mv <= 0) || (mv > emc->dvfs->max_millivolts)) {
+//		tegra_emc_table = NULL;
+//		pr_err("tegra: invalid EMC DFS table: maximum rate %lu kHz does"
+//		       " not match nominal voltage %d\n",
+//		       max_rate, emc->dvfs->max_millivolts);
+//		return;
+//	}
 
 	if (!is_emc_bridge()) {
 		tegra_emc_table = NULL;
