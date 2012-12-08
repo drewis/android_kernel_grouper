@@ -336,11 +336,11 @@ __tegra_dvfs_set_rate(struct dvfs *d, unsigned long rate)
 	if (freqs == NULL || d->millivolts == NULL)
 		return -ENODEV;
 
-	if (rate > freqs[d->num_freqs - 1]) {
-		pr_warn("tegra_dvfs: rate %lu too high for dvfs on %s\n", rate,
-			d->clk_name);
-		return -EINVAL;
-	}
+//	if (rate > freqs[d->num_freqs - 1]) {
+//		pr_warn("tegra_dvfs: rate %lu too high for dvfs on %s\n", rate,
+//			d->clk_name);
+//		return -EINVAL;
+//	}
 
 	if (rate == 0) {
 		d->cur_millivolts = 0;
@@ -348,12 +348,12 @@ __tegra_dvfs_set_rate(struct dvfs *d, unsigned long rate)
 		while (i < d->num_freqs && rate > freqs[i])
 			i++;
 
-		if ((d->max_millivolts) &&
-		    (d->millivolts[i] > d->max_millivolts)) {
-			pr_warn("tegra_dvfs: voltage %d too high for dvfs on"
-				" %s\n", d->millivolts[i], d->clk_name);
-			return -EINVAL;
-		}
+//		if ((d->max_millivolts) &&
+//		    (d->millivolts[i] > d->max_millivolts)) {
+//			pr_warn("tegra_dvfs: voltage %d too high for dvfs on"
+//				" %s\n", d->millivolts[i], d->clk_name);
+//			return -EINVAL;
+//		}
 		d->cur_millivolts = d->millivolts[i];
 	}
 
