@@ -262,8 +262,8 @@ static struct dvfs core_dvfs_table[] = {
 	CORE_DVFS("emc", emc_millivolts,    3, 1, KHZ,        1,      1,      1,      1,      1,       1,  625000,  625000,  625000),
 
 	CORE_DVFS("sbus", core_millivolts,   0, 1, KHZ,        1, 136000, 164000, 191000, 216000,  216000,  216000,  216000,  216000),
-	CORE_DVFS("sbus", core_millivolts,   1, 1, KHZ,    51000, 205000, 205000, 227000, 227000,  267000,  267000,  267000,  267000),
-	CORE_DVFS("sbus", core_millivolts,   2, 1, KHZ,    51000, 205000, 205000, 227000, 227000,  267000,  334000,  334000,  334000),
+	CORE_DVFS("sbus", core_millivolts,   1, 1, KHZ,   205000, 205000, 205000, 227000, 227000,  267000,  267000,  267000,  267000),
+	CORE_DVFS("sbus", core_millivolts,   2, 1, KHZ,   205000, 205000, 205000, 227000, 227000,  267000,  334000,  334000,  334000),
 	CORE_DVFS("sbus", core_millivolts,   3, 1, KHZ,        1,      1,      1,      1,      1,       1,  378000,  378000,  378000),
 
 	CORE_DVFS("vi", core_millivolts,     0, 1, KHZ,        1, 216000, 285000, 300000, 300000,  300000,  300000,  300000,  300000),
@@ -488,9 +488,9 @@ static struct dvfs core_dvfs_table[] = {
 	CORE_DVFS("sbc5", core_millivolts,  -1, 1, KHZ,        1,  52000,  60000,  60000,  60000, 100000,  100000,   100000,  100000),
 	CORE_DVFS("sbc6", core_millivolts,  -1, 1, KHZ,        1,  52000,  60000,  60000,  60000, 100000,  100000,   100000,  100000),
 
-	CORE_DVFS("usbd", core_millivolts,  -1, 1, KHZ,        1, 480000, 480000, 480000, 480000, 480000,  480000,   480000,  480000),
-	CORE_DVFS("usb2", core_millivolts,  -1, 1, KHZ,        1, 480000, 480000, 480000, 480000, 480000,  480000,   480000,  480000),
-	CORE_DVFS("usb3", core_millivolts,  -1, 1, KHZ,        1, 480000, 480000, 480000, 480000, 480000,  480000,   480000,  480000),
+	CORE_DVFS("usbd", core_millivolts,  -1, 1, KHZ,   480000, 480000, 480000, 480000, 480000, 480000,  480000,   480000,  480000),
+	CORE_DVFS("usb2", core_millivolts,  -1, 1, KHZ,   480000, 480000, 480000, 480000, 480000, 480000,  480000,   480000,  480000),
+	CORE_DVFS("usb3", core_millivolts,  -1, 1, KHZ,   480000, 480000, 480000, 480000, 480000, 480000,  480000,   480000,  480000),
 
 	CORE_DVFS("sata", core_millivolts,  -1, 1, KHZ,        1, 216000, 216000, 216000, 216000, 216000,  216000,   216000,  216000),
 	CORE_DVFS("sata_oob", core_millivolts, -1, 1, KHZ,     1, 216000, 216000, 216000, 216000, 216000,  216000,   216000,  216000),
@@ -1145,3 +1145,4 @@ static int __init tegra_dvfs_init_core_cap(void)
 	return 0;
 }
 late_initcall(tegra_dvfs_init_core_cap);
+
