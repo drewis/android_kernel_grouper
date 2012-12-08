@@ -28,7 +28,6 @@
 #include <linux/memblock.h>
 #include <linux/bitops.h>
 #include <linux/sched.h>
-#include <linux/cpufreq.h>
 
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/system.h>
@@ -48,6 +47,8 @@
 #include "reset.h"
 #include "devices.h"
 
+#define PMC_SCRATCH37                   0x130
+
 #define MC_SECURITY_CFG2	0x7c
 
 #define AHB_ARBITRATION_PRIORITY_CTRL		0x4
@@ -63,6 +64,7 @@
 #define   RECOVERY_MODE	BIT(31)
 #define   BOOTLOADER_MODE	BIT(30)
 #define   FORCED_RECOVERY_MODE	BIT(1)
+#define 	GO_TO_CHARGER_MODE (0xA5A55A5A)
 
 #define AHB_GIZMO_USB		0x1c
 #define AHB_GIZMO_USB2		0x78
@@ -101,7 +103,7 @@ static struct board_info pmu_board_info;
 static struct board_info display_board_info;
 static struct board_info camera_board_info;
 
-static int pmu_core_edp = 1200;	/* default 1.2V EDP limit */
+static int pmu_core_edp = 1700;	/* default 1.2V EDP limit */
 static int board_panel_type;
 static enum power_supply_type pow_supply_type = POWER_SUPPLY_TYPE_MAINS;
 
@@ -135,6 +137,15 @@ void tegra_assert_system_reset(char mode, const char *cmd)
 		reg &= ~(BOOTLOADER_MODE | RECOVERY_MODE | FORCED_RECOVERY_MODE);
 	}
 	writel_relaxed(reg, reset + PMC_SCRATCH0);
+
+	if (cmd && !strcmp(cmd, "chrager-mode"))
+	{
+		reg = readl_relaxed(reset + PMC_SCRATCH37);
+		reg = GO_TO_CHARGER_MODE;
+		writel_relaxed(GO_TO_CHARGER_MODE, reset + PMC_SCRATCH37);
+		//printk("tegra_assert_system_reset reg =%x",reg );
+	}
+
 	/* use *_related to avoid spinlock since caches are off */
 	reg = readl_relaxed(reset);
 	reg |= 0x10;
@@ -142,7 +153,6 @@ void tegra_assert_system_reset(char mode, const char *cmd)
 #endif
 }
 static int modem_id;
-static int commchip_id;
 static int sku_override;
 static int debug_uart_port_id;
 static enum audio_codec_type audio_codec_name;
@@ -155,11 +165,6 @@ static int max_cpu_current;
 static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "clk_m",	NULL,		0,		true },
-	{ "emc",	NULL,		0,		true },
-	{ "cpu",	NULL,		0,		true },
-	{ "kfuse",	NULL,		0,		true },
-	{ "fuse",	NULL,		0,		true },
-	{ "sclk",	NULL,		0,		true },
 #ifdef CONFIG_TEGRA_SILICON_PLATFORM
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	{ "pll_p",	NULL,		216000000,	true },
@@ -167,7 +172,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "pll_p_out2",	"pll_p",	48000000,	false },
 	{ "pll_p_out3",	"pll_p",	72000000,	true },
 	{ "pll_p_out4",	"pll_p",	108000000,	false },
-	{ "pll_m",	"clk_m",	0,		true },
+	{ "pll_m",	"pll_ref",	0,		true },
 	{ "pll_m_out1",	"pll_m",	120000000,	true },
 	{ "sclk",	"pll_c_out1",	40000000,	true },
 	{ "hclk",	"sclk",		40000000,	true },
@@ -188,7 +193,14 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sclk",	"pll_p_out4",	102000000,	true },
 	{ "hclk",	"sclk",		102000000,	true },
 	{ "pclk",	"hclk",		51000000,	true },
+	{ "wake.sclk",	NULL,	40000000,	true },
+	{ "sbc5.sclk",	NULL,		40000000,	false},
+	{ "sbc6.sclk",	NULL,		40000000,	false},
 #endif
+	{ "sbc1.sclk",	NULL,		40000000,	false},
+	{ "sbc2.sclk",	NULL,		40000000,	false},
+	{ "sbc3.sclk",	NULL,		40000000,	false},
+	{ "sbc4.sclk",	NULL,		40000000,	false},
 #else
 	{ "pll_p",	NULL,		216000000,	true },
 	{ "pll_p_out1",	"pll_p",	28800000,	false },
@@ -199,25 +211,25 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sclk",	"pll_p_out4",	108000000,	true },
 	{ "hclk",	"sclk",		108000000,	true },
 	{ "pclk",	"hclk",		54000000,	true },
+	{ "pll_c",	NULL,		ULONG_MAX,	false },
+	{ "pll_c_out1",	"pll_c",	208000000,	false },
 #endif
 #ifdef CONFIG_TEGRA_SLOW_CSITE
 	{ "csite",	"clk_m",	1000000, 	true },
 #else
 	{ "csite",      NULL,           0,              true },
 #endif
+	{ "emc",	NULL,		0,		true },
+	{ "cpu",	NULL,		0,		true },
+	{ "kfuse",	NULL,		0,		true },
+	{ "fuse",	NULL,		0,		true },
 	{ "pll_u",	NULL,		480000000,	false },
 	{ "sdmmc1",	"pll_p",	48000000,	false},
 	{ "sdmmc3",	"pll_p",	48000000,	false},
 	{ "sdmmc4",	"pll_p",	48000000,	false},
-	{ "sbc1.sclk",	NULL,		40000000,	false},
-	{ "sbc2.sclk",	NULL,		40000000,	false},
-	{ "sbc3.sclk",	NULL,		40000000,	false},
-	{ "sbc4.sclk",	NULL,		40000000,	false},
+	{ "pll_a",	"pll_p_out1",	0,		false},
+	{ "pll_a_out0",	"pll_a",	0,		false},
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
-	{ "sbc5.sclk",	NULL,		40000000,	false},
-	{ "sbc6.sclk",	NULL,		40000000,	false},
-	{ "wake.sclk",	NULL,		40000000,	true },
-	{ "cpu_mode.sclk", NULL,	80000000,	false },
 	{ "cbus",	"pll_c",	416000000,	false },
 	{ "pll_c_out1",	"pll_c",	208000000,	false },
 	{ "mselect",	"pll_p",	102000000,	true },
@@ -301,6 +313,8 @@ void tegra_init_cache(bool init)
 {
 	void __iomem *p = IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x3000;
 	u32 aux_ctrl;
+	u32 speedo;
+	u32 tmp;
 
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
 	/* issue the SMC to enable the L2 */
@@ -327,8 +341,6 @@ void tegra_init_cache(bool init)
 		writel(0x221, p + L2X0_TAG_LATENCY_CTRL);
 		writel(0x221, p + L2X0_DATA_LATENCY_CTRL);
 	} else {
-		u32 speedo;
-
 		/* relax l2-cache latency for speedos 4,5,6 (T33's chips) */
 		speedo = tegra_cpu_speedo_id();
 		if (speedo == 4 || speedo == 5 || speedo == 6 ||
@@ -345,15 +357,12 @@ void tegra_init_cache(bool init)
 	writel(0x770, p + L2X0_DATA_LATENCY_CTRL);
 #endif
 #endif
-	writel(0x3, p + L2X0_POWER_CTRL);
 	aux_ctrl = readl(p + L2X0_CACHE_TYPE);
 	aux_ctrl = (aux_ctrl & 0x700) << (17-8);
 	aux_ctrl |= 0x7C000001;
 	if (init) {
 		l2x0_init(p, aux_ctrl, 0x8200c3fe);
 	} else {
-		u32 tmp;
-
 		tmp = aux_ctrl;
 		aux_ctrl = readl(p + L2X0_AUX_CTRL);
 		aux_ctrl &= 0x8200c3fe;
@@ -635,16 +644,14 @@ enum audio_codec_type get_audio_codec_type(void)
 }
 __setup("audio_codec=", tegra_audio_codec_type);
 
-
 void tegra_get_board_info(struct board_info *bi)
 {
-	bi->board_id = (system_serial_high >> 16) & 0xFFFF;
-	bi->sku = (system_serial_high) & 0xFFFF;
-	bi->fab = (system_serial_low >> 24) & 0xFF;
-	bi->major_revision = (system_serial_low >> 16) & 0xFF;
-	bi->minor_revision = (system_serial_low >> 8) & 0xFF;
+	bi->board_id = 0xF41;
+	bi->sku = 0xA00;
+	bi->fab =0x1;
+	bi->major_revision = 0x044;
+	bi->minor_revision = 0x2;
 }
-
 static int __init tegra_pmu_board_info(char *info)
 {
 	char *p = info;
@@ -658,6 +665,7 @@ static int __init tegra_pmu_board_info(char *info)
 
 void tegra_get_pmu_board_info(struct board_info *bi)
 {
+	pmu_board_info.sku = 0x1;
 	memcpy(bi, &pmu_board_info, sizeof(struct board_info));
 }
 
@@ -713,22 +721,6 @@ int tegra_get_modem_id(void)
 }
 
 __setup("modem_id=", tegra_modem_id);
-
-static int __init tegra_commchip_id(char *id)
-{
-	char *p = id;
-
-	if (get_option(&p, &commchip_id) != 1)
-		return 0;
-	return 1;
-}
-
-int tegra_get_commchip_id(void)
-{
-	return commchip_id;
-}
-
-__setup("commchip_id=", tegra_commchip_id);
 
 /*
  * Tegra has a protected aperture that prevents access by most non-CPU
@@ -797,9 +789,28 @@ out:
 	iounmap(to_io);
 }
 
+#ifdef CONFIG_TEGRA_SMMU_BASE_AT_E0000000
+#define FORCE_SMMU_BASE_FOR_TEGRA3_A01 1
+#else
+#define FORCE_SMMU_BASE_FOR_TEGRA3_A01 0
+#endif
+#if FORCE_SMMU_BASE_FOR_TEGRA3_A01 ||  \
+	(defined(CONFIG_TEGRA_IOVMM_SMMU) && defined(CONFIG_ARCH_TEGRA_3x_SOC))
+/* Support for Tegra3 A01 chip mask that needs to have SMMU IOVA reside in
+ * the upper half of 4GB IOVA space. A02 and after use the bottom 1GB and
+ * do not need to reserve memory.
+ */
+#define SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
+#endif
+
 void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 	unsigned long fb2_size)
 {
+#ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
+	int smmu_reserved = 0;
+	struct tegra_smmu_window *smmu_window = tegra_smmu_window(0);
+#endif
+
 	if (carveout_size) {
 		tegra_carveout_start = memblock_end_of_DRAM() - carveout_size;
 		if (memblock_remove(tegra_carveout_start, carveout_size)) {
@@ -844,6 +855,33 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 
 	if (tegra_carveout_size && tegra_carveout_start < tegra_grhost_aperture)
 		tegra_grhost_aperture = tegra_carveout_start;
+
+#ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
+	if (!smmu_window) {
+		pr_err("No SMMU resource\n");
+	} else {
+		size_t smmu_window_size;
+
+		if (FORCE_SMMU_BASE_FOR_TEGRA3_A01 ||
+			(tegra_get_chipid() == TEGRA_CHIPID_TEGRA3 &&
+			tegra_get_revision() == TEGRA_REVISION_A01)) {
+			smmu_window->start = TEGRA_SMMU_BASE_TEGRA3_A01;
+			smmu_window->end   = TEGRA_SMMU_BASE_TEGRA3_A01 +
+						TEGRA_SMMU_SIZE_TEGRA3_A01 - 1;
+		}
+		smmu_window_size = smmu_window->end + 1 - smmu_window->start;
+		if (smmu_window->start >= 0x80000000) {
+			if (memblock_reserve(smmu_window->start,
+						smmu_window_size))
+				pr_err(
+			"Failed to reserve SMMU I/O VA window %08lx@%08lx\n",
+				(unsigned long)smmu_window_size,
+				(unsigned long)smmu_window->start);
+			else
+				smmu_reserved = 1;
+		}
+	}
+#endif
 
 	if (tegra_lp0_vec_size &&
 	   (tegra_lp0_vec_start < memblock_end_of_DRAM())) {
@@ -898,6 +936,12 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 		tegra_vpr_start,
 		tegra_vpr_size ?
 			tegra_vpr_start + tegra_vpr_size - 1 : 0);
+
+#ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
+	if (smmu_reserved)
+		pr_info("SMMU:                   %08lx - %08lx\n",
+			smmu_window->start, smmu_window->end);
+#endif
 }
 
 static struct resource ram_console_resources[] = {
@@ -917,13 +961,20 @@ void __init tegra_ram_console_debug_reserve(unsigned long ram_console_size)
 {
 	struct resource *res;
 	long ret;
+	unsigned long real_start, real_size;
 
 	res = platform_get_resource(&ram_console_device, IORESOURCE_MEM, 0);
 	if (!res)
 		goto fail;
+
 	res->start = memblock_end_of_DRAM() - ram_console_size;
 	res->end = res->start + ram_console_size - 1;
-	ret = memblock_remove(res->start, ram_console_size);
+
+	// Register an extra 1M before ramconsole to store kexec stuff
+	real_start = res->start - SZ_1M;
+	real_size = ram_console_size + SZ_1M;
+
+	ret = memblock_remove(real_start, real_size);
 	if (ret)
 		goto fail;
 
@@ -955,77 +1006,118 @@ void __init tegra_release_bootloader_fb(void)
 }
 
 #ifdef CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
-char cpufreq_default_gov[CONFIG_NR_CPUS][MAX_GOV_NAME_LEN];
-char *cpufreq_conservative_gov = "conservative";
+static char cpufreq_gov_default[32];
+static char *cpufreq_gov_conservative = "conservative";
+static char *cpufreq_sysfs_place_holder="/sys/devices/system/cpu/cpu%i/cpufreq/scaling_governor";
+static char *cpufreq_gov_conservative_param="/sys/devices/system/cpu/cpufreq/conservative/%s";
 
-void cpufreq_store_default_gov(void)
+static void cpufreq_set_governor(char *governor)
 {
-	unsigned int cpu = 0;
-	struct cpufreq_policy *policy;
+	struct file *scaling_gov = NULL;
+	mm_segment_t old_fs;
+	char    buf[128];
+	int i = 0;
+	loff_t offset = 0;
 
+	if (governor == NULL)
+		return;
+
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
 #ifndef CONFIG_TEGRA_AUTO_HOTPLUG
-	for_each_online_cpu(cpu)
+	for_each_online_cpu(i)
 #endif
 	{
-		policy = cpufreq_cpu_get(cpu);
-		if (policy && policy->governor) {
-			sprintf(cpufreq_default_gov[cpu], "%s",
-					policy->governor->name);
-			cpufreq_cpu_put(policy);
+		sprintf(buf, cpufreq_sysfs_place_holder, i);
+		scaling_gov = filp_open(buf, O_RDWR, 0);
+		if (scaling_gov != NULL) {
+			if (scaling_gov->f_op != NULL &&
+				scaling_gov->f_op->write != NULL)
+				scaling_gov->f_op->write(scaling_gov,
+						governor,
+						strlen(governor),
+						&offset);
+			else
+				pr_err("f_op might be null\n");
+
+			filp_close(scaling_gov, NULL);
 		} else {
-			/* No policy or no gov set for this
-			 * online cpu. If we are here, require
-			 * serious debugging hence setting
-			 * as pr_error.
-			 */
-			pr_err("No gov or No policy for online cpu:%d,"
-					, cpu);
+			pr_err("%s. Can't open %s\n", __func__, buf);
 		}
 	}
+	set_fs(old_fs);
 }
 
-void cpufreq_change_gov(char *target_gov)
+void cpufreq_save_default_governor(void)
 {
-	int ret = -EINVAL;
-	unsigned int cpu = 0;
+	struct file *scaling_gov = NULL;
+	mm_segment_t old_fs;
+	char    buf[128];
+	loff_t offset = 0;
 
-#ifndef CONFIG_TEGRA_AUTO_HOTPLUG
-	for_each_online_cpu(cpu)
-#endif
-	{
-		ret = cpufreq_set_gov(target_gov, cpu);
-		if (ret < 0)
-			/* Unable to set gov for the online cpu.
-			 * If it happens, needs to debug.
-			 */
-			pr_info("Unable to set gov:%s for online cpu:%d,"
-				, cpufreq_default_gov[cpu]
-					, cpu);
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	buf[127] = 0;
+	sprintf(buf, cpufreq_sysfs_place_holder,0);
+	scaling_gov = filp_open(buf, O_RDONLY, 0);
+	if (scaling_gov != NULL) {
+		if (scaling_gov->f_op != NULL &&
+			scaling_gov->f_op->read != NULL)
+			scaling_gov->f_op->read(scaling_gov,
+					cpufreq_gov_default,
+					32,
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+
+		filp_close(scaling_gov, NULL);
+	} else {
+		pr_err("%s. Can't open %s\n", __func__, buf);
 	}
+	set_fs(old_fs);
 }
 
-void cpufreq_restore_default_gov(void)
+void cpufreq_restore_default_governor(void)
 {
-	int ret = -EINVAL;
-	unsigned int cpu = 0;
+	cpufreq_set_governor(cpufreq_gov_default);
+}
 
-#ifndef CONFIG_TEGRA_AUTO_HOTPLUG
-	for_each_online_cpu(cpu)
-#endif
-	{
-		if (&cpufreq_default_gov[cpu] &&
-			strlen((const char *)&cpufreq_default_gov[cpu])) {
-			ret = cpufreq_set_gov(cpufreq_default_gov[cpu], cpu);
-			if (ret < 0)
-				/* Unable to restore gov for the cpu as
-				 * It was online on suspend and becomes
-				 * offline on resume.
-				 */
-				pr_info("Unable to restore gov:%s for cpu:%d,"
-						, cpufreq_default_gov[cpu]
-							, cpu);
-		}
-		cpufreq_default_gov[cpu][0] = '\0';
+void cpufreq_set_conservative_governor_param(char *name, int value)
+{
+	struct file *gov_param = NULL;
+	mm_segment_t old_fs;
+	static char buf[128], param_value[8];
+	loff_t offset = 0;
+
+	/* change to KERNEL_DS address limit */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	sprintf(param_value, "%d", value);
+	sprintf(buf, cpufreq_gov_conservative_param, name);
+	gov_param = filp_open(buf, O_RDWR, 0);
+	if (gov_param != NULL) {
+		if (gov_param->f_op != NULL &&
+			gov_param->f_op->write != NULL)
+			gov_param->f_op->write(gov_param,
+					param_value,
+					strlen(param_value),
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+
+		filp_close(gov_param, NULL);
+	} else {
+		pr_err("%s. Can't open %s\n", __func__, buf);
 	}
+	set_fs(old_fs);
+}
+
+void cpufreq_set_conservative_governor(void)
+{
+	cpufreq_set_governor(cpufreq_gov_conservative);
 }
 #endif /* CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND */
