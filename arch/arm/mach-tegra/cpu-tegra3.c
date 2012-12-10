@@ -39,7 +39,7 @@
 #include "clock.h"
 
 #define INITIAL_STATE		TEGRA_HP_DISABLED
-#define UP2G0_DELAY_MS		200
+#define UP2G0_DELAY_MS		1000
 #define UP2Gn_DELAY_MS		200
 #define DOWN_DELAY_MS		1000
 
