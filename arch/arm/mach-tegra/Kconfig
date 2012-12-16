@@ -328,14 +328,14 @@ choice
 
 	depends on LP_OVERCLOCK
 	prompt "Maximum LP Rate"
-	default GPU_OC_620
+	default GPU_OC_666
 	---help---
 	  Select the desired LP overclock rate.
 
 	  If you are not sure what you are doing, leave this
 	  option alone!
-	config LP_OC_550
-		bool "550 MHz"
+	config LP_OC_555
+		bool "555 MHz"
 	config LP_OC_620
 		bool "620 MHz"
 	config LP_OC_666

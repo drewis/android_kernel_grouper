@@ -235,8 +235,8 @@ static struct dvfs core_dvfs_table[] = {
 	/* Clock limits for internal blocks, PLLs */
 	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 0, 1, KHZ,        1, 294000, 342000, 427000, 475000,  500000,  500000,  500000,  500000),
 #ifdef CONFIG_LP_OVERCLOCK
-#ifdef CONFIG_LP_OC_550
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 294000, 342000, 475000, 550000,  550000,  550000,  550000,  550000),
+#ifdef CONFIG_LP_OC_555
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 294000, 342000, 475000, 555000,  555000,  555000,  555000,  555000),
 #endif
 #ifdef CONFIG_LP_OC_620
 	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 294000, 342000, 475000, 620000,  620000,  620000,  620000,  620000),

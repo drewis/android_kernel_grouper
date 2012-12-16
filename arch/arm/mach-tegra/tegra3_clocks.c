@@ -4669,8 +4669,8 @@ static struct cpufreq_frequency_table freq_table_1p6GHz[] = {
 #ifdef CONFIG_LP_OC_620
 	{ 5,  620000 },
 #endif
-#ifdef CONFIG_LP_OC_550
-	{ 5,  550000 },
+#ifdef CONFIG_LP_OC_555
+	{ 5,  555000 },
 #endif
 #else
 	{ 5,  620000 },
