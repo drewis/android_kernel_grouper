@@ -102,7 +102,7 @@ static tegra_dc_bl_output grouper_bl_output_measured = {
 	/* 0 - 15 */
 	0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 8, 9, 10,
 	/* 16 - 31 */
-	11, 12, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28,
+	11, 12, 13, 13, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28,
 	/* 32 - 47 */
 	29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
 	/* 48 - 63 */
@@ -443,7 +443,7 @@ static struct tegra_dc_sd_settings grouper_sd_settings = {
 	.bin_width = -1,
 	.aggressiveness = 1,
 	.phase_in_adjustments = true,
-	.panel_min_brightness = 5,
+	.panel_min_brightness = 19,
 	.use_vid_luma = false,
 	/* Default video coefficients */
 	.coeff = {5, 9, 2},
