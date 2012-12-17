@@ -45,8 +45,7 @@ config ARCH_TEGRA_3x_SOC
 	select PCI_MSI if TEGRA_PCI
 	select ARM_ERRATA_754322
 	select ARM_ERRATA_764369
-	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD
-#	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD && !TEGRA_RAIL_OFF_MULTIPLE_CPUS
+	select TEGRA_LP2_ARM_TWD if HAVE_ARM_TWD && !TEGRA_RAIL_OFF_MULTIPLE_CPUS
 	select CPA
 	help
 	  Support for NVIDIA Tegra 3 family of SoCs, based upon the
@@ -508,6 +507,13 @@ config TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
 	help
 	 Also will restore to original cpu frequency governor when device is resumed
 
+config TEGRA_LP1_950
+	bool "LP1 low core voltage"
+	default n
+	depends on ARCH_TEGRA_3x_SOC
+	help
+	  Enable support for LP1 Core voltage to set to lowest
+
 config TEGRA_RUNNABLE_THREAD
 	bool "Tegra3 runnable thread hotplug"
 	depends on ARCH_TEGRA_3x_SOC
@@ -600,9 +606,7 @@ config TEGRA_LP2_ARM_TWD
 	bool
 
 config TEGRA_RAIL_OFF_MULTIPLE_CPUS
-	bool "Tegra Rail Off Multiple CPUs"
-	depends on TEGRA_SILICON_PLATFORM
-	default n
+	bool
 
 config TEGRA_SLOW_CSITE
 	bool "lower csite clock to 1 Mhz to reduce its power consumption"
