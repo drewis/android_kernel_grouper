@@ -615,6 +615,14 @@ static struct tegra_suspend_platform_data grouper_suspend_data = {
 	.cpu_lp2_min_residency = 2000,
 	.board_suspend = grouper_board_suspend,
 	.board_resume = grouper_board_resume,
+#ifdef CONFIG_TEGRA_LP1_950
+	.lp1_lowvolt_support = true,
+	.i2c_base_addr = TEGRA_I2C5_BASE,
+	.pmuslave_addr = 0x24,
+	.core_reg_addr = 0x5B,
+	.lp1_core_volt_low = 0x1D,
+	.lp1_core_volt_high = 0x33,
+#endif
 };
 
 int __init grouper_suspend_init(void)
