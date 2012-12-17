@@ -776,8 +776,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 				pcpu->target_set_time;
 			pcpu->hispeed_validate_time =
 				pcpu->target_set_time;
-			pcpu->time_in_idle = pcpu->target_set_time_in_idle;
-			pcpu->idle_exit_time = pcpu->target_set_time;
+			pcpu->time_in_idle = pcpu->freq_change_time_in_idle;
+			pcpu->idle_exit_time = pcpu->freq_change_time;
 			pcpu->freq_change_time_in_iowait =
 				get_cpu_iowait_time(j, NULL);
 			pcpu->time_in_iowait = pcpu->freq_change_time_in_iowait;
