@@ -371,88 +371,88 @@ static struct dvfs core_dvfs_table[] = {
 	CORE_DVFS("3d2", avp_millivolts,    3, 1, KHZ,        1,      1,      1,      1,      1,       1,  484000,  484000,  484000),
 	CORE_DVFS("se", avp_millivolts,     3, 1, KHZ,        1,      1,      1,      1,      1,       1,  625000,  625000,  625000),
 
-	CORE_DVFS("host1x", core_millivolts, 0, 1, KHZ,        1, 152000, 188000, 222000, 254000,  267000,  267000,  267000,  267000),
+	CORE_DVFS("host1x", avp_millivolts, 0, 1, KHZ,        1, 152000, 188000, 222000, 254000,  267000,  267000,  267000,  267000),
 #ifdef CONFIG_GPU_OVERCLOCK
 #ifdef CONFIG_GPU_OC_332
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 167000, 167000, 167000, 167000,  167000,  167000,  167000,  167000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 167000, 167000, 167000, 167000,  167000,  167000,  167000,  167000),
 #endif
 #ifdef CONFIG_GPU_OC_446
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 223000, 223000,  223000,  223000,  223000,  223000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 223000, 223000,  223000,  223000,  223000,  223000),
 #endif
 #ifdef CONFIG_GPU_OC_484
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 242000, 242000,  242000,  242000,  242000,  242000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 242000, 242000,  242000,  242000,  242000,  242000),
 #endif
 #ifdef CONFIG_GPU_OC_520
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 260000,  260000,  260000,  260000,  260000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 260000,  260000,  260000,  260000,  260000),
 #endif
 #ifdef CONFIG_GPU_OC_600
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  300000,  300000,  300000,  300000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  300000,  300000,  300000,  300000),
 #endif
 #ifdef CONFIG_GPU_OC_666
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  333000,  333000,  333000,  333000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  333000,  333000,  333000,  333000),
 #endif
 #ifdef CONFIG_GPU_OC_700
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  350000,  350000,  350000,  350000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  350000,  350000,  350000,  350000),
 #endif
 #else
-	CORE_DVFS("host1x", core_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  267000,  267000,  267000,  267000),
+	CORE_DVFS("host1x", avp_millivolts, 1, 1, KHZ,        1, 152000, 188000, 222000, 254000,  267000,  267000,  267000,  267000),
 #endif
-	CORE_DVFS("host1x", core_millivolts, 2, 1, KHZ,        1, 152000, 188000, 222000, 254000,  267000,  267000,  267000,  300000),
-	CORE_DVFS("host1x", core_millivolts, 3, 1, KHZ,        1,      1,      1,      1,      1,       1,  242000,  242000,  242000),
+	CORE_DVFS("host1x", avp_millivolts, 2, 1, KHZ,        1, 152000, 188000, 222000, 254000,  267000,  267000,  267000,  300000),
+	CORE_DVFS("host1x", avp_millivolts, 3, 1, KHZ,        1,      1,      1,      1,      1,       1,  242000,  242000,  242000),
 
-	CORE_DVFS("cbus", core_millivolts,   0, 1, KHZ,        1, 228000, 275000, 332000, 380000,  416000,  416000,  416000,  416000),
+	CORE_DVFS("cbus", avp_millivolts,   0, 1, KHZ,        1, 228000, 275000, 332000, 380000,  416000,  416000,  416000,  416000),
 #ifdef CONFIG_GPU_OVERCLOCK
 #ifdef CONFIG_GPU_OC_332
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 332000,  332000,  332000,  332000,  332000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 332000,  332000,  332000,  332000,  332000),
 #endif
 #ifdef CONFIG_GPU_OC_446
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  446000,  446000,  446000,  446000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  446000,  446000,  446000,  446000),
 #endif
 #ifdef CONFIG_GPU_OC_484
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  484000,  484000,  484000,  484000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  484000,  484000,  484000,  484000),
 #endif
 #ifdef CONFIG_GPU_OC_520
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  520000,  520000,  520000,  520000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  520000,  520000,  520000,  520000),
 #endif
 #ifdef CONFIG_GPU_OC_600
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  600000,  600000,  600000,  600000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  600000,  600000,  600000,  600000),
 #endif
 #ifdef CONFIG_GPU_OC_666
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  666000,  666000,  666000,  666000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  666000,  666000,  666000,  666000),
 #endif
 #ifdef CONFIG_GPU_OC_700
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  700000,  700000,  700000,  700000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  700000,  700000,  700000,  700000),
 #endif
 #else
-	CORE_DVFS("cbus", core_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  416000,  416000,  416000,  416000),
+	CORE_DVFS("cbus", avp_millivolts,   1, 1, KHZ,        1, 228000, 275000, 332000, 380000,  416000,  416000,  416000,  416000),
 #endif
-	CORE_DVFS("cbus", core_millivolts,   2, 1, KHZ,        1, 247000, 304000, 352000, 400000,  437000,  484000,  520000,  600000),
-	CORE_DVFS("cbus", core_millivolts,   3, 1, KHZ,        1, 484000, 484000, 484000, 484000,  484000,  484000,  484000,  484000),
+	CORE_DVFS("cbus", avp_millivolts,   2, 1, KHZ,        1, 247000, 304000, 352000, 400000,  437000,  484000,  520000,  600000),
+	CORE_DVFS("cbus", avp_millivolts,   3, 1, KHZ,        1, 484000, 484000, 484000, 484000,  484000,  484000,  484000,  484000),
 
 #ifdef CONFIG_GPU_OVERCLOCK
 #ifdef CONFIG_GPU_OC_332
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 667000, 667000, 667000, 667000, 667000, 667000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 667000, 667000, 667000, 667000, 667000, 667000),
 #endif
 #ifdef CONFIG_GPU_OC_446
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 892000, 892000, 892000, 892000, 892000, 892000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 892000, 892000, 892000, 892000, 892000, 892000),
 #endif
 #ifdef CONFIG_GPU_OC_484
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 968000, 968000, 968000, 968000, 968000, 968000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 968000, 968000, 968000, 968000, 968000, 968000),
 #endif
 #ifdef CONFIG_GPU_OC_520
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 1040000, 1040000, 1040000, 1040000, 1040000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 1040000, 1040000, 1040000, 1040000, 1040000),
 #endif
 #ifdef CONFIG_GPU_OC_600
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1200000, 1200000, 1200000, 1200000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1200000, 1200000, 1200000, 1200000),
 #endif
 #ifdef CONFIG_GPU_OC_666
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1332000, 1332000, 1332000, 1332000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1332000, 1332000, 1332000, 1332000),
 #endif
 #ifdef CONFIG_GPU_OC_700
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1400000, 1400000, 1400000, 1400000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1400000, 1400000, 1400000, 1400000),
 #endif
 #else
-	CORE_DVFS("pll_c", core_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1066000, 1066000, 1066000, 1200000),
+	CORE_DVFS("pll_c", avp_millivolts,  -1, 1, KHZ,  533000, 667000, 667000, 800000, 800000, 1066000, 1066000, 1066000, 1200000),
 #endif
 	/*
 	 * PLLM dvfs is common across all speedo IDs with one special exception
