@@ -154,8 +154,7 @@ static void tegra_cpuquiet_work_func(struct work_struct *work)
 			break;
 		case TEGRA_CPQ_SWITCH_TO_LP:
 			if (!is_lp_cluster() && !no_lp &&
-				!pm_qos_request(PM_QOS_MIN_ONLINE_CPUS)
-				&& num_online_cpus() == 1) {
+					num_online_cpus() == 1) {
 				if (!clk_set_parent(cpu_clk, cpu_lp_clk)) {
 					/*catch-up with governor target speed*/
 					tegra_cpu_set_speed_cap(NULL);
@@ -221,7 +220,7 @@ static int min_cpus_notify(struct notifier_block *nb, unsigned long n, void *p)
 
 	mutex_lock(tegra3_cpu_lock);
 
-	if ((n >= 1) && is_lp_cluster()) {
+	if ((n >= 2) && is_lp_cluster()) {
 		/* make sure cpu rate is within g-mode range before switching */
 		unsigned long speed = max((unsigned long)tegra_getspeed(0),
 					clk_get_min_rate(cpu_g_clk) / 1000);
