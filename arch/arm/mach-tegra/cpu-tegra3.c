@@ -39,9 +39,9 @@
 #include "clock.h"
 
 #define INITIAL_STATE		TEGRA_HP_DISABLED
-#define UP2G0_DELAY_MS		1000
+#define UP2G0_DELAY_MS		100
 #define UP2Gn_DELAY_MS		200
-#define DOWN_DELAY_MS		1000
+#define DOWN_DELAY_MS		4000
 
 static struct mutex *tegra3_cpu_lock;
 
@@ -66,7 +66,7 @@ module_param(idle_bottom_freq, uint, 0644);
 static int mp_overhead = 10;
 module_param(mp_overhead, int, 0644);
 
-static int balance_level = 70;
+static int balance_level = 60;
 module_param(balance_level, int, 0644);
 
 static struct clk *cpu_clk;
@@ -438,7 +438,7 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 			hp_state = TEGRA_HP_DOWN;
 			queue_delayed_work(
 #ifdef CONFIG_TEGRA_RUNNABLE_THREAD
-				hotplug_wq, &hotplug_work, up_delay);
+				hotplug_wq, &hotplug_work, up2gn_delay);
 #else
 				hotplug_wq, &hotplug_work, down_delay);
 #endif
