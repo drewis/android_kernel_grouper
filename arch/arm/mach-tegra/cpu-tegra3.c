@@ -39,9 +39,9 @@
 #include "clock.h"
 
 #define INITIAL_STATE		TEGRA_HP_DISABLED
-#define UP2G0_DELAY_MS		100
-#define UP2Gn_DELAY_MS		200
-#define DOWN_DELAY_MS		4000
+#define UP2G0_DELAY_MS		384
+#define UP2Gn_DELAY_MS		128
+#define DOWN_DELAY_MS		2112
 
 static struct mutex *tegra3_cpu_lock;
 
