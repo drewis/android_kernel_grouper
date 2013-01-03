@@ -277,7 +277,7 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 			/* Force switch */
 			cpq_state = TEGRA_CPQ_SWITCH_TO_G;
 			queue_delayed_work(
-				cpuquiet_wq, &cpuquiet_work, up2g_delay);
+				cpuquiet_wq, &cpuquiet_work, up_delay);
 		}
 		return;
 	}
