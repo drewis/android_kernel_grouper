@@ -38,7 +38,9 @@
 #include "clock.h"
 
 #define INITIAL_STATE		TEGRA_CPQ_IDLE
+#define UP2G_DELAY_MS		70
 #define UP_DELAY_MS		70
+#define DOWN2LP_DELAY_MS	500
 #define DOWN_DELAY_MS		500
 
 static struct mutex *tegra3_cpu_lock;
@@ -51,7 +53,9 @@ static struct kobject *tegra_auto_sysfs_kobject;
 static bool no_lp;
 static bool enable;
 static unsigned long up_delay;
+static unsigned long up2g_delay;
 static unsigned long down_delay;
+static unsigned long down2lp_delay;
 static int mp_overhead = 10;
 static unsigned int idle_top_freq;
 static unsigned int idle_bottom_freq;
@@ -273,18 +277,18 @@ void tegra_auto_hotplug_governor(unsigned int cpu_freq, bool suspend)
 			/* Force switch */
 			cpq_state = TEGRA_CPQ_SWITCH_TO_G;
 			queue_delayed_work(
-				cpuquiet_wq, &cpuquiet_work, up_delay);
+				cpuquiet_wq, &cpuquiet_work, up2g_delay);
 		}
 		return;
 	}
 
 	if (is_lp_cluster() && (cpu_freq >= idle_top_freq || no_lp)) {
 		cpq_state = TEGRA_CPQ_SWITCH_TO_G;
-		queue_delayed_work(cpuquiet_wq, &cpuquiet_work, up_delay);
+		queue_delayed_work(cpuquiet_wq, &cpuquiet_work, up2g_delay);
 	} else if (!is_lp_cluster() && !no_lp &&
 		   cpu_freq <= idle_bottom_freq) {
 		cpq_state = TEGRA_CPQ_SWITCH_TO_LP;
-		queue_delayed_work(cpuquiet_wq, &cpuquiet_work, down_delay);
+		queue_delayed_work(cpuquiet_wq, &cpuquiet_work, down2lp_delay);
 	} else {
 		cpq_state = TEGRA_CPQ_IDLE;
 	}
@@ -343,13 +347,17 @@ CPQ_BASIC_ATTRIBUTE(idle_top_freq, 0644, uint);
 CPQ_BASIC_ATTRIBUTE(idle_bottom_freq, 0644, uint);
 CPQ_BASIC_ATTRIBUTE(mp_overhead, 0644, int);
 CPQ_ATTRIBUTE(up_delay, 0644, ulong, delay_callback);
+CPQ_ATTRIBUTE(up2g_delay, 0644, ulong, delay_callback);
 CPQ_ATTRIBUTE(down_delay, 0644, ulong, delay_callback);
+CPQ_ATTRIBUTE(down2lp_delay, 0644, ulong, delay_callback);
 CPQ_ATTRIBUTE(enable, 0644, bool, enable_callback);
 
 static struct attribute *tegra_auto_attributes[] = {
 	&no_lp_attr.attr,
 	&up_delay_attr.attr,
+	&up2g_delay_attr.attr,
 	&down_delay_attr.attr,
+	&down2lp_delay_attr.attr,
 	&idle_top_freq_attr.attr,
 	&idle_bottom_freq_attr.attr,
 	&mp_overhead_attr.attr,
@@ -414,7 +422,9 @@ int tegra_auto_hotplug_init(struct mutex *cpu_lock)
 	idle_bottom_freq = clk_get_min_rate(cpu_g_clk) / 1000;
 
 	up_delay = msecs_to_jiffies(UP_DELAY_MS);
+	up2g_delay = msecs_to_jiffies(UP2G_DELAY_MS);
 	down_delay = msecs_to_jiffies(DOWN_DELAY_MS);
+	down2lp_delay = msecs_to_jiffies(DOWN2LP_DELAY_MS);
 	cpumask_clear(&cr_online_requests);
 	tegra3_cpu_lock = cpu_lock;
 
