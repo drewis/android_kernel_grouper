@@ -242,7 +242,7 @@ static struct dvfs core_dvfs_table[] = {
 	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 294000, 342000, 475000, 620000,  620000,  620000,  620000,  620000),
 #endif
 #ifdef CONFIG_LP_OC_666
-	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 342000, 475000, 550000, 666000,  666000,  666000,  666000,  666000),
+	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 342000, 475000, 555000, 666000,  666000,  666000,  666000,  666000),
 #endif
 #ifdef CONFIG_LP_OC_700
 	CORE_DVFS("cpu_lp", lp_cpu_millivolts, 1, 1, KHZ,   204000, 342000, 475000, 620000, 700000,  700000,  700000,  700000,  700000),
