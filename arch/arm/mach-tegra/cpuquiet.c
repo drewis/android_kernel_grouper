@@ -38,10 +38,10 @@
 #include "clock.h"
 
 #define INITIAL_STATE		TEGRA_CPQ_IDLE
-#define UP2G_DELAY_MS		70
-#define UP_DELAY_MS		70
-#define DOWN2LP_DELAY_MS	500
-#define DOWN_DELAY_MS		500
+#define UP2G_DELAY_MS		384
+#define UP_DELAY_MS		128
+#define DOWN2LP_DELAY_MS	4224
+#define DOWN_DELAY_MS		2112
 
 static struct mutex *tegra3_cpu_lock;
 static struct workqueue_struct *cpuquiet_wq;
