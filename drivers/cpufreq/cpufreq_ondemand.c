@@ -38,15 +38,15 @@
  */
 
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(5)
-#define DEF_FREQUENCY_UP_THRESHOLD		(88)
-#define DEF_SAMPLING_DOWN_FACTOR		(2)
+#define DEF_FREQUENCY_UP_THRESHOLD		(92)
+#define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(5)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(88)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(95)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
-#define DEF_SAMPLING_RATE			(50000)
+#define DEF_SAMPLING_RATE			(60000)
 #define DEF_IO_IS_BUSY				(1)
 #define DEF_UI_DYNAMIC_SAMPLING_RATE		(30000)
 #define DEF_UI_COUNTER				(5)
@@ -324,7 +324,7 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 #endif
 
 static unsigned int Touch_poke_attr[4] = {1500000, 0, 0, 0};
-static unsigned int Touch_poke_boost_duration_ms = 0;
+static unsigned int Touch_poke_boost_duration_ms = 2000;
 static unsigned long Touch_poke_boost_till_jiffies = 0;
 
 static ssize_t store_touch_poke(struct kobject *a, struct attribute *b,
@@ -565,8 +565,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	/*
 	 * keep freq for touch boost
 	 */
-	if (Touch_poke_boost_till_jiffies > jiffies)
-		return;
+//	if (Touch_poke_boost_till_jiffies > jiffies)
+//		return;
 
 	/*
 	 * Every sampling_rate, we check, if current idle time is less
@@ -705,6 +705,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 #endif
 	/* Check for frequency decrease */
 	/* if we cannot reduce the frequency anymore, break out early */
+
 	if (policy->cur == policy->min)
 		return;
 
@@ -717,6 +718,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	    (dbs_tuners_ins.up_threshold - dbs_tuners_ins.down_differential) *
 	     policy->cur) {
 		unsigned int freq_next;
+		unsigned int freq_min;
 		freq_next = max_load_freq /
 				(dbs_tuners_ins.up_threshold -
 				 dbs_tuners_ins.down_differential);
@@ -724,8 +726,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		/* No longer fully busy, reset rate_mult */
 		this_dbs_info->rate_mult = 1;
 
-		if (freq_next < policy->min)
-			freq_next = policy->min;
+		if (is_lp_cluster() && Touch_poke_boost_till_jiffies > jiffies) {
+			freq_min = idle_top_freq;
+		} else {
+			freq_min = policy->min;
+		}
+		if (freq_next < freq_min)
+			freq_next = freq_min;
 
 		if (!dbs_tuners_ins.powersave_bias) {
 			debug_freq = freq_next;
