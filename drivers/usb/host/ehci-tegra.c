@@ -208,7 +208,6 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 			val &= ~TEGRA_USB_PHY_CLK_VALID_INT_ENB |
 				TEGRA_USB_PHY_CLK_VALID_INT_STS;
 			writel(val , (hcd->regs + TEGRA_USB_SUSP_CTRL_OFFSET));
-
 			val = readl(&hw->status);
 			if (!(val  & STS_PCD)) {
 				spin_unlock(&ehci->lock);
@@ -217,6 +216,12 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 			val = readl(hcd->regs + TEGRA_USB_PORTSC1_OFFSET);
 			val &= ~(TEGRA_USB_PORTSC1_WKCN | PORT_RWC_BITS);
 			writel(val , (hcd->regs + TEGRA_USB_PORTSC1_OFFSET));
+		}
+		else if (tegra->bus_suspended &&
+				tegra->port_speed > TEGRA_USB_PHY_PORT_SPEED_HIGH) {
+			printk("%s: no device connected before suspend\n", __func__);
+			spin_unlock(&ehci->lock);
+			return 0;
 		}
 		spin_unlock(&ehci->lock);
 	}
@@ -1366,6 +1371,7 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 	usb_remove_hcd(hcd);
 	usb_put_hcd(hcd);
 	tegra_usb_phy_power_off(tegra->phy, true);
+	tegra_ehci_disable_phy_interrupt(hcd);
 	tegra_usb_phy_close(tegra->phy);
 	iounmap(hcd->regs);
 
