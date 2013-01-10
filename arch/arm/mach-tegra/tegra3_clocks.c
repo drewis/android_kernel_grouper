@@ -3552,6 +3552,18 @@ static struct clk tegra_pll_u = {
 };
 
 static struct clk_pll_freq_table tegra_pll_x_freq_table[] = {
+	/* 1.9 GHz */
+	{ 12000000, 1900000000, 850,  6,  1, 8},
+	{ 13000000, 1900000000, 915,  7,  1, 8},
+	{ 16800000, 1900000000, 708,  7,  1, 8},
+	{ 19200000, 1900000000, 885,  10, 1, 8},
+	{ 26000000, 1900000000, 950,  13, 1, 8},
+	/* 1.8 GHz */
+	{ 12000000, 1800000000, 850,  6,  1, 8},
+	{ 13000000, 1800000000, 915,  7,  1, 8},
+	{ 16800000, 1800000000, 708,  7,  1, 8},
+	{ 19200000, 1800000000, 885,  10, 1, 8},
+	{ 26000000, 1800000000, 900,  13, 1, 8},
 	/* 1.7 GHz */
 	{ 12000000, 1700000000, 850,  6,  1, 8},
 	{ 13000000, 1700000000, 915,  7,  1, 8},	/* actual: 1699.2 MHz */
@@ -3559,13 +3571,6 @@ static struct clk_pll_freq_table tegra_pll_x_freq_table[] = {
 	{ 19200000, 1700000000, 885,  10, 1, 8},	/* actual: 1699.2 MHz */
 	{ 26000000, 1700000000, 850,  13, 1, 8},
 
-	/* 1.624 GHz */
-	{ 12000000, 1624000000, 812,  6,  1, 8},
-	{ 13000000, 1624000000, 999,  8,  1, 8},    /* actual 1623.4 MHz */
-	{ 16800000, 1624000000, 870,  9,  1, 8},
-	{ 19200000, 1624000000, 930, 11,  1, 8},    /* actual 1623.2 MHz */
-	{ 26000000, 1624000000, 812, 13,  1, 8},
-	
 	/* 1.6 GHz */
 	{ 12000000, 1600000000, 800,  6,  1, 8},
 	{ 13000000, 1600000000, 738,  6,  1, 8},	/* actual: 1599.0 MHz */
@@ -3624,14 +3629,14 @@ static struct clk tegra_pll_x = {
 	.ops       = &tegra_pll_ops,
 	.reg       = 0xe0,
 	.parent    = &tegra_pll_ref,
-	.max_rate  = 1700000000,
+	.max_rate  = 1900000000,
 	.u.pll = {
 		.input_min = 2000000,
 		.input_max = 31000000,
 		.cf_min    = 1000000,
 		.cf_max    = 6000000,
 		.vco_min   = 20000000,
-		.vco_max   = 1700000000,
+		.vco_max   = 1900000000,
 		.freq_table = tegra_pll_x_freq_table,
 		.lock_delay = 300,
 	},
@@ -3909,7 +3914,7 @@ static struct clk tegra_clk_cclk_g = {
 	.inputs	= mux_cclk_g,
 	.reg	= 0x368,
 	.ops	= &tegra_super_ops,
-	.max_rate = 1700000000,
+	.max_rate = 1900000000,
 };
 
 static struct clk tegra_clk_cclk_lp = {
@@ -3918,7 +3923,7 @@ static struct clk tegra_clk_cclk_lp = {
 	.inputs	= mux_cclk_lp,
 	.reg	= 0x370,
 	.ops	= &tegra_super_ops,
-	.max_rate = 740000000,
+	.max_rate = 720000000,
 };
 
 static struct clk tegra_clk_sclk = {
@@ -3934,7 +3939,7 @@ static struct clk tegra_clk_virtual_cpu_g = {
 	.name      = "cpu_g",
 	.parent    = &tegra_clk_cclk_g,
 	.ops       = &tegra_cpu_ops,
-	.max_rate  = 1700000000,
+	.max_rate  = 1900000000,
 	.u.cpu = {
 		.main      = &tegra_pll_x,
 		.backup    = &tegra_pll_p,
@@ -3946,7 +3951,7 @@ static struct clk tegra_clk_virtual_cpu_lp = {
 	.name      = "cpu_lp",
 	.parent    = &tegra_clk_cclk_lp,
 	.ops       = &tegra_cpu_ops,
-	.max_rate  = 740000000,
+	.max_rate  = 720000000,
 	.u.cpu = {
 		.main      = &tegra_pll_x,
 		.backup    = &tegra_pll_p,
@@ -4693,16 +4698,58 @@ static struct cpufreq_frequency_table freq_table_1p7GHz[] = {
 	{ 2,  204000 },
 	{ 3,  340000 },
 	{ 4,  475000 },
-	{ 5,  620000 },
+	{ 5,  666000 },
 	{ 6,  860000 },
 	{ 7, 1000000 },
-	{ 8, 1200000 },
-	{ 9, 1300000 },
-	{10, 1400000 },
-	{11, 1500000 },
-	{12, 1600000 },
-	{13, 1700000 },
-	{14, CPUFREQ_TABLE_END },
+	{ 8, 1100000 },
+	{ 9, 1200000 },
+	{10, 1300000 },
+	{11, 1400000 },
+	{12, 1500000 },
+	{13, 1600000 },
+	{14, 1700000 },
+	{15, CPUFREQ_TABLE_END },
+};
+
+static struct cpufreq_frequency_table freq_table_1p8GHz[] = {
+	{ 0,   51000 },
+	{ 1,  102000 },
+	{ 2,  204000 },
+	{ 3,  340000 },
+	{ 4,  475000 },
+	{ 5,  666000 },
+	{ 6,  860000 },
+	{ 7, 1000000 },
+	{ 8, 1100000 },
+	{ 9, 1200000 },
+	{10, 1300000 },
+	{11, 1400000 },
+	{12, 1500000 },
+	{13, 1600000 },
+	{14, 1700000 },
+	{15, 1800000 },
+	{16, CPUFREQ_TABLE_END },
+};
+
+static struct cpufreq_frequency_table freq_table_1p9GHz[] = {
+	{ 0,   51000 },
+	{ 1,  102000 },
+	{ 2,  204000 },
+	{ 3,  340000 },
+	{ 4,  475000 },
+	{ 5,  666000 },
+	{ 6,  860000 },
+	{ 7, 1000000 },
+	{ 8, 1100000 },
+	{ 9, 1200000 },
+	{10, 1300000 },
+	{11, 1400000 },
+	{12, 1500000 },
+	{13, 1600000 },
+	{14, 1700000 },
+	{15, 1800000 },
+	{16, 1900000 },
+	{17, CPUFREQ_TABLE_END },
 };
 
 static struct tegra_cpufreq_table_data cpufreq_tables[] = {
@@ -4712,7 +4759,10 @@ static struct tegra_cpufreq_table_data cpufreq_tables[] = {
 	{ freq_table_1p4GHz, 2, 11 },
 	{ freq_table_1p5GHz, 2, 12 },
 	{ freq_table_1p6GHz, 2, 13 },
-	{ freq_table_1p7GHz, 2, 12 },
+	{ freq_table_1p7GHz, 2, 13 },
+	{ freq_table_1p7GHz, 2, 13 },
+	{ freq_table_1p8GHz, 2, 13 },
+	{ freq_table_1p9GHz, 2, 13 },
 };
 
 static int clip_cpu_rate_limits(
@@ -4809,8 +4859,8 @@ unsigned long tegra_emc_to_cpu_ratio(unsigned long cpu_rate)
 
 	/* Vote on memory bus frequency based on cpu frequency;
 	   cpu rate is in kHz, emc rate is in Hz */
-	if (cpu_rate >= 650000)
-		return emc_max_rate;	/* cpu >= 925 MHz, emc max */
+	if (cpu_rate >= 850000)
+		return emc_max_rate;	/* cpu >= 850 MHz, emc max */
 	else if (cpu_rate >= 450000)
 		return emc_max_rate/2;	/* cpu >= 450 MHz, emc max/2 */
 	else if (cpu_rate >= 250000)
