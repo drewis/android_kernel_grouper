@@ -41,7 +41,7 @@
 #define INITIAL_STATE		TEGRA_HP_DISABLED
 #define UP2G0_DELAY_MS		300
 #define UP2Gn_DELAY_MS		150
-#define DOWN_DELAY_MS		1000
+#define DOWN_DELAY_MS		2000
 
 static struct mutex *tegra3_cpu_lock;
 
