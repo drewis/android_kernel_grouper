@@ -1,5 +1,9 @@
 /*
- *  drivers/cpufreq/cpufreq_ondemand.c
+ *  drivers/cpufreq/cpufreq_touchdemand.c
+ *
+ *  Touch-Demand
+ *   - Cpu scaling governor based on ondemand
+ *   - Modified for Tegra 3, the LP core, and touchscreen response
  *
  *  Copyright (C)  2001 Russell King
  *            (C)  2003 Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>.
@@ -38,18 +42,16 @@
  */
 
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
-#define DEF_FREQUENCY_UP_THRESHOLD		(90)
-#define DEF_SAMPLING_DOWN_FACTOR		(1)
+#define DEF_FREQUENCY_UP_THRESHOLD		(80)
+#define DEF_SAMPLING_DOWN_FACTOR		(2)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(10)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(90)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(80)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define DEF_SAMPLING_RATE			(50000)
 #define DEF_IO_IS_BUSY				(1)
-#define DEF_UI_DYNAMIC_SAMPLING_RATE		(30000)
-#define DEF_UI_COUNTER				(5)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -78,11 +80,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 static struct clk *cpu_lp_clk;
 static unsigned int idle_top_freq;
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_TOUCHDEMAND
 static
 #endif
-struct cpufreq_governor cpufreq_gov_ondemand = {
-       .name                   = "ondemand",
+struct cpufreq_governor cpufreq_gov_touchdemand = {
+       .name                   = "touchdemand",
        .governor               = cpufreq_governor_dbs,
        .max_transition_latency = TRANSITION_LATENCY_LIMIT,
        .owner                  = THIS_MODULE,
@@ -116,7 +118,6 @@ struct cpu_dbs_info_s {
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
 
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
-static unsigned int g_ui_counter = 0;
 
 /*
  * dbs_mutex protects dbs_enable in governor start/stop.
@@ -131,19 +132,19 @@ static struct dbs_tuners {
 	unsigned int sampling_down_factor;
 	unsigned int powersave_bias;
 	unsigned int io_is_busy;
-	unsigned int two_phase_freq;
+	unsigned int touch_floor_freq;
+	unsigned int touch_floor_time;
+	unsigned int touch_poke;
 	unsigned int origin_sampling_rate;
-	unsigned int ui_sampling_rate;
-	unsigned int ui_counter;
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.down_differential = DEF_FREQUENCY_DOWN_DIFFERENTIAL,
 	.ignore_nice = 0,
 	.powersave_bias = 0,
-	.two_phase_freq = 1200000,
-	.ui_sampling_rate = DEF_UI_DYNAMIC_SAMPLING_RATE,
-	.ui_counter = DEF_UI_COUNTER,
+	.touch_floor_freq = 860000,
+	.touch_floor_time = 2000,
+	.touch_poke = 1,
 };
 
 static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
@@ -244,18 +245,18 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 	return freq_hi;
 }
 
-static void ondemand_powersave_bias_init_cpu(int cpu)
+static void touchdemand_powersave_bias_init_cpu(int cpu)
 {
 	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
 	dbs_info->freq_table = cpufreq_frequency_get_table(cpu);
 	dbs_info->freq_lo = 0;
 }
 
-static void ondemand_powersave_bias_init(void)
+static void touchdemand_powersave_bias_init(void)
 {
 	int i;
 	for_each_online_cpu(i) {
-		ondemand_powersave_bias_init_cpu(i);
+		touchdemand_powersave_bias_init_cpu(i);
 	}
 }
 
@@ -269,7 +270,7 @@ static ssize_t show_sampling_rate_min(struct kobject *kobj,
 
 define_one_global_ro(sampling_rate_min);
 
-/* cpufreq_ondemand Governor Tunables */
+/* cpufreq_touchdemand Governor Tunables */
 #define show_one(file_name, object)					\
 static ssize_t show_##file_name						\
 (struct kobject *kobj, struct attribute *attr, char *buf)              \
@@ -283,9 +284,10 @@ show_one(sampling_down_factor, sampling_down_factor);
 show_one(down_differential, down_differential);
 show_one(ignore_nice_load, ignore_nice);
 show_one(powersave_bias, powersave_bias);
-show_one(two_phase_freq, two_phase_freq);
-show_one(ui_sampling_rate, ui_sampling_rate);
-show_one(ui_counter, ui_counter);
+show_one(touch_floor_freq, touch_floor_freq);
+show_one(touch_floor_time, touch_floor_time);
+show_one(touch_poke, touch_poke);
+
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
@@ -299,7 +301,7 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
+static ssize_t store_touch_floor_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
 	unsigned int input;
@@ -308,13 +310,13 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 	if (ret != 1)
 		return -EINVAL;
 
-	dbs_tuners_ins.two_phase_freq = input;
+	dbs_tuners_ins.touch_floor_freq = input;
 
 	return count;
 }
 
-static ssize_t store_ui_sampling_rate(struct kobject *a, struct attribute *b,
-					const char *buf, size_t count)
+static ssize_t store_touch_floor_time(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
 {
 	unsigned int input;
 	int ret;
@@ -322,7 +324,31 @@ static ssize_t store_ui_sampling_rate(struct kobject *a, struct attribute *b,
 	if (ret != 1)
 		return -EINVAL;
 
-	dbs_tuners_ins.ui_sampling_rate = max(input, min_sampling_rate);
+	dbs_tuners_ins.touch_floor_time = input;
+
+	return count;
+}
+
+static unsigned int Touch_poke_attr[4] = {1500000, 1100000, 0, 0};
+static unsigned int Touch_poke_boost = 1;
+static unsigned long Touch_poke_boost_till_jiffies = 0;
+
+static ssize_t store_touch_poke(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	int ret;
+	ret = sscanf(buf, "%u,%u,%u,%u,%u", &Touch_poke_attr[0], &Touch_poke_attr[1],
+		&Touch_poke_attr[2], &Touch_poke_attr[3], &Touch_poke_boost);
+	if (ret < 4)
+		return -EINVAL;
+
+	if (ret != 5)
+		Touch_poke_boost = 0;
+
+	if(Touch_poke_attr[0] == 0)
+		dbs_tuners_ins.touch_poke = 0;
+	else
+		dbs_tuners_ins.touch_poke = 1;
 
 	return count;
 }
@@ -436,21 +462,7 @@ static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 		input = 1000;
 
 	dbs_tuners_ins.powersave_bias = input;
-	ondemand_powersave_bias_init();
-	return count;
-}
-
-static ssize_t store_ui_counter(struct kobject *a, struct attribute *b,
-				const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-
-	ret = sscanf(buf, "%u", &input);
-	if(ret != 1)
-		return -EINVAL;
-
-	dbs_tuners_ins.ui_counter = input;
+	touchdemand_powersave_bias_init();
 	return count;
 }
 
@@ -461,9 +473,9 @@ define_one_global_rw(down_differential);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(powersave_bias);
-define_one_global_rw(two_phase_freq);
-define_one_global_rw(ui_sampling_rate);
-define_one_global_rw(ui_counter);
+define_one_global_rw(touch_floor_freq);
+define_one_global_rw(touch_floor_time);
+define_one_global_rw(touch_poke);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -474,15 +486,15 @@ static struct attribute *dbs_attributes[] = {
 	&ignore_nice_load.attr,
 	&powersave_bias.attr,
 	&io_is_busy.attr,
-	&two_phase_freq.attr,
-	&ui_sampling_rate.attr,
-	&ui_counter.attr,
+	&touch_floor_freq.attr,
+	&touch_floor_time.attr,
+	&touch_poke.attr,
 	NULL
 };
 
 static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
-	.name = "ondemand",
+	.name = "touchdemand",
 };
 
 /************************** sysfs end ************************/
@@ -498,9 +510,9 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
 			CPUFREQ_RELATION_L : CPUFREQ_RELATION_H);
 }
 
-int set_two_phase_freq(int cpufreq)
+int set_touch_floor_freq(int cpufreq)
 {
-	dbs_tuners_ins.two_phase_freq = cpufreq;
+	dbs_tuners_ins.touch_floor_freq = cpufreq;
 	return 0;
 }
 
@@ -513,11 +525,15 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	struct cpufreq_policy *policy;
 	unsigned int j;
-	static unsigned int phase = 0;
-	static unsigned int counter = 0;
 
 	this_dbs_info->freq_lo = 0;
 	policy = this_dbs_info->cur_policy;
+
+	/*
+	 * keep freq for touch boost
+	 */
+//	if (Touch_poke_boost_till_jiffies > jiffies)
+//		return;
 
 	/*
 	 * Every sampling_rate, we check, if current idle time is less
@@ -576,7 +592,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 
 		/*
-		 * For the purpose of ondemand, waiting for disk IO is an
+		 * For the purpose of touchdemand, waiting for disk IO is an
 		 * indication that you're performance critical, and not that
 		 * the system is actually idle. So subtract the iowait time
 		 * from the cpu idle time.
@@ -602,52 +618,20 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 
-	if (g_ui_counter > 0){
-		g_ui_counter--;
-		if(g_ui_counter == 0)
-			dbs_tuners_ins.sampling_rate = dbs_tuners_ins.origin_sampling_rate;
-	}
-
 	/* Check for frequency increase */
 	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur) {
 		/* If switching to max speed, apply sampling_down_factor */
-		if (counter < 5) {
-			counter++;
-			if (counter > 2) {
-				/* change to busy phase */
-				phase = 1;
-			}
-		}
-		if (dbs_tuners_ins.two_phase_freq != 0 && phase == 0) {
-			debug_freq = dbs_tuners_ins.two_phase_freq;
-			/* idle phase
-                         * limit the frequency to max lpcpu if only 1 cpu is online
-                         * this should avoid fast "peak"-switching out of lpcpu */
-                        if (!is_lp_cluster())
-                                dbs_freq_increase(policy, dbs_tuners_ins.two_phase_freq);
-                        else
-                                dbs_freq_increase(policy, idle_top_freq);
-		} else {
-			/* busy phase */
-			if (policy->cur < policy->max)
-				this_dbs_info->rate_mult =
-					dbs_tuners_ins.sampling_down_factor;
-			debug_freq = policy->max;
-			dbs_freq_increase(policy, policy->max);
-		}
+		if (policy->cur < policy->max)
+			this_dbs_info->rate_mult =
+				dbs_tuners_ins.sampling_down_factor;
+		debug_freq = policy->max;
+		dbs_freq_increase(policy, policy->max);
 		return;
-	}
-
-	if (counter > 0) {
-		counter--;
-		if (counter == 0) {
-			/* change to idle phase */
-			phase = 0;
-		}
 	}
 
 	/* Check for frequency decrease */
 	/* if we cannot reduce the frequency anymore, break out early */
+
 	if (policy->cur == policy->min)
 		return;
 
@@ -660,6 +644,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	    (dbs_tuners_ins.up_threshold - dbs_tuners_ins.down_differential) *
 	     policy->cur) {
 		unsigned int freq_next;
+		unsigned int freq_min;
 		freq_next = max_load_freq /
 				(dbs_tuners_ins.up_threshold -
 				 dbs_tuners_ins.down_differential);
@@ -667,8 +652,17 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		/* No longer fully busy, reset rate_mult */
 		this_dbs_info->rate_mult = 1;
 
-		if (freq_next < policy->min)
-			freq_next = policy->min;
+		if (Touch_poke_boost_till_jiffies > jiffies) {
+			if (is_lp_cluster()) {
+				freq_min = idle_top_freq;
+			} else {
+				freq_min = dbs_tuners_ins.touch_floor_freq; }
+		} else {
+			freq_min = policy->min;
+		}
+
+		if (freq_next < freq_min)
+			freq_next = freq_min;
 
 		if (!dbs_tuners_ins.powersave_bias) {
 			debug_freq = freq_next;
@@ -769,51 +763,54 @@ static void dbs_chown(void)
 {
 	int ret;
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/ignore_nice_load", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/ignore_nice_load", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown ignore_nice_load error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/io_is_busy", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/io_is_busy", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown io_is_busy error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/powersave_bias", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/powersave_bias", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown powersave_bias error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/sampling_down_factor", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/sampling_down_factor", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown sampling_down_factor error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/sampling_rate", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/sampling_rate", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown sampling_rate error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/two_phase_freq", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/touch_floor_freq", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
-		pr_err("sys_chown two_phase_freq error: %d", ret);
+		pr_err("sys_chown touch_floor_freq error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/up_threshold", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/touch_floor_time", low2highuid(AID_SYSTEM), low2highgid(0));
+	if (ret)
+		pr_err("sys_chown touch_floor_time error: %d", ret);
+
+
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/up_threshold", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown up_threshold error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/down_differential", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/down_differential", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown down_differential error: %d", ret);
 
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/ui_sampling_rate", low2highuid(AID_SYSTEM), low2highgid(0));
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/touch_poke", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
-		pr_err("sys_chown ui_sampling_rate error: %d", ret);
-
-	ret = sys_chown("/sys/devices/system/cpu/cpufreq/ondemand/ui_counter", low2highuid(AID_SYSTEM), low2highgid(0));
-	if (ret)
-		pr_err("sys_chown ui_counter error: %d", ret);
+		pr_err("sys_chown touch_poke error: %d", ret);
 }
 
 static void dbs_refresh_callback(struct work_struct *unused)
 {
 	struct cpufreq_policy *policy;
 	struct cpu_dbs_info_s *this_dbs_info;
+	unsigned int nr_cpus;
+	unsigned int touch_poke_freq;
 	unsigned int cpu = smp_processor_id();
 
 	if (lock_policy_rwsem_write(cpu) < 0)
@@ -822,14 +819,107 @@ static void dbs_refresh_callback(struct work_struct *unused)
 	this_dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
 	policy = this_dbs_info->cur_policy;
 
-	g_ui_counter = dbs_tuners_ins.ui_counter;
-	if(dbs_tuners_ins.ui_counter > 0)
-		dbs_tuners_ins.sampling_rate = dbs_tuners_ins.ui_sampling_rate;
+	if (Touch_poke_boost)
+		Touch_poke_boost_till_jiffies =
+			jiffies + msecs_to_jiffies(dbs_tuners_ins.touch_floor_time);
+
+	/* We poke the frequency base on the online cpu number */
+	nr_cpus = num_online_cpus();
+
+	if (!is_lp_cluster())
+		touch_poke_freq = Touch_poke_attr[nr_cpus-1];
+	else
+		touch_poke_freq = idle_top_freq;
+
+	if(touch_poke_freq == 0 || policy->cur >= touch_poke_freq){
+		unlock_policy_rwsem_write(cpu);
+		return;
+	}
+
+	__cpufreq_driver_target(policy, touch_poke_freq,
+		CPUFREQ_RELATION_L);
+	this_dbs_info->prev_cpu_idle = get_cpu_idle_time(cpu,
+		&this_dbs_info->prev_cpu_wall);
 
 	unlock_policy_rwsem_write(cpu);
 }
 
 static DECLARE_WORK(dbs_refresh_work, dbs_refresh_callback);
+
+static void dbs_input_event(struct input_handle *handle, unsigned int type,
+		unsigned int code, int value)
+{
+	if (dbs_tuners_ins.touch_poke)
+		schedule_work(&dbs_refresh_work);
+}
+
+static int input_dev_filter(const char* input_dev_name)
+{
+	int ret = 0;
+	if (strstr(input_dev_name, "touchscreen") ||
+		strstr(input_dev_name, "-keypad") ||
+		strstr(input_dev_name, "-nav") ||
+		strstr(input_dev_name, "-oj")) {
+	}
+	else {
+		ret = 1;
+	}
+	return ret;
+}
+
+
+static int dbs_input_connect(struct input_handler *handler,
+		struct input_dev *dev, const struct input_device_id *id)
+{
+	struct input_handle *handle;
+	int error;
+
+	/* filter out those input_dev that we don't care */
+	if (input_dev_filter(dev->name))
+		return 0;
+
+	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!handle)
+		return -ENOMEM;
+
+	handle->dev = dev;
+	handle->handler = handler;
+	handle->name = "cpufreq";
+
+	error = input_register_handle(handle);
+	if (error)
+		goto err2;
+
+	error = input_open_device(handle);
+	if (error)
+		goto err1;
+
+	return 0;
+err1:
+	input_unregister_handle(handle);
+err2:
+	kfree(handle);
+	return error;
+}
+
+static void dbs_input_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static const struct input_device_id dbs_ids[] = {
+	{ .driver_info = 1 },
+	{ },
+};
+static struct input_handler dbs_input_handler = {
+	.event          = dbs_input_event,
+	.connect        = dbs_input_connect,
+	.disconnect     = dbs_input_disconnect,
+	.name           = "cpufreq_ond",
+	.id_table       = dbs_ids,
+};
 
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				   unsigned int event)
@@ -863,7 +953,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		}
 		this_dbs_info->cpu = cpu;
 		this_dbs_info->rate_mult = 1;
-		ondemand_powersave_bias_init_cpu(cpu);
+		touchdemand_powersave_bias_init_cpu(cpu);
 		/*
 		 * Start the timerschedule work, when this governor
 		 * is used for first time
@@ -895,6 +985,8 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			dbs_tuners_ins.origin_sampling_rate = dbs_tuners_ins.sampling_rate;
 			dbs_tuners_ins.io_is_busy = should_io_be_busy();
 		}
+		if (!cpu)
+			rc = input_register_handler(&dbs_input_handler);
 
 		mutex_unlock(&dbs_mutex);
 
@@ -908,6 +1000,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_lock(&dbs_mutex);
 		mutex_destroy(&this_dbs_info->timer_mutex);
 		dbs_enable--;
+
+		if (!cpu)
+			input_unregister_handler(&dbs_input_handler);
 
 		if (!dbs_enable)
 			sysfs_remove_group(cpufreq_global_kobject,
@@ -958,22 +1053,22 @@ static int __init cpufreq_gov_dbs_init(void)
 	}
 	def_sampling_rate = DEF_SAMPLING_RATE;
 
-	return cpufreq_register_governor(&cpufreq_gov_ondemand);
+	return cpufreq_register_governor(&cpufreq_gov_touchdemand);
 }
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
-	cpufreq_unregister_governor(&cpufreq_gov_ondemand);
+	cpufreq_unregister_governor(&cpufreq_gov_touchdemand);
 }
 
 
 MODULE_AUTHOR("Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>");
 MODULE_AUTHOR("Alexey Starikovskiy <alexey.y.starikovskiy@intel.com>");
-MODULE_DESCRIPTION("'cpufreq_ondemand' - A dynamic cpufreq governor for "
-	"Low Latency Frequency Transition capable processors");
+MODULE_DESCRIPTION("'cpufreq_touchdemand' - A dynamic cpufreq governor "
+	"based on ondemand modified for Tegra 3 by Metallice");
 MODULE_LICENSE("GPL");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND
+#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_TOUCHDEMAND
 fs_initcall(cpufreq_gov_dbs_init);
 #else
 module_init(cpufreq_gov_dbs_init);
