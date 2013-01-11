@@ -37,12 +37,12 @@
  * It helps to keep variable names smaller, simpler
  */
 
-#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(5)
-#define DEF_FREQUENCY_UP_THRESHOLD		(92)
-#define DEF_SAMPLING_DOWN_FACTOR		(1)
+#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
+#define DEF_FREQUENCY_UP_THRESHOLD		(80)
+#define DEF_SAMPLING_DOWN_FACTOR		(2)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
-#define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(5)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(95)
+#define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(10)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(80)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
@@ -323,8 +323,8 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 }
 #endif
 
-static unsigned int Touch_poke_attr[4] = {1500000, 0, 0, 0};
-static unsigned int Touch_poke_boost_duration_ms = 2000;
+static unsigned int Touch_poke_attr[4] = {1500000, 1100000, 0, 0};
+static unsigned int Touch_poke_boost_duration_ms = 4000;
 static unsigned long Touch_poke_boost_till_jiffies = 0;
 
 static ssize_t store_touch_poke(struct kobject *a, struct attribute *b,
@@ -726,11 +726,15 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		/* No longer fully busy, reset rate_mult */
 		this_dbs_info->rate_mult = 1;
 
-		if (is_lp_cluster() && Touch_poke_boost_till_jiffies > jiffies) {
-			freq_min = idle_top_freq;
+		if (Touch_poke_boost_till_jiffies > jiffies) {
+			if (is_lp_cluster()) {
+				freq_min = idle_top_freq;
+			} else {
+				freq_min = 860000; }
 		} else {
 			freq_min = policy->min;
 		}
+
 		if (freq_next < freq_min)
 			freq_next = freq_min;
 
