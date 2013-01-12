@@ -30,13 +30,15 @@
 #include <linux/sched.h>
 #include <linux/iommu.h>
 #include <linux/io.h>
+#include <linux/of.h>
 
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 
 #include <mach/iomap.h>
 #include <mach/smmu.h>
-#include <mach/tegra_smmu.h>
+#include <mach/tegra-ahb.h>
+//#include <mach/tegra_smmu.h>
 
 /* bitmap of the page sizes currently supported */
 #define SMMU_IOMMU_PGSIZES	(SZ_4K)
@@ -111,11 +113,6 @@
 #define SMMU_VI_ASID	0x280   /* Video input */
 
 #define SMMU_PDE_NEXT_SHIFT		28
-
-/* AHB Arbiter Registers */
-#define AHB_XBAR_CTRL				0xe0
-#define AHB_XBAR_CTRL_SMMU_INIT_DONE_DONE	1
-#define AHB_XBAR_CTRL_SMMU_INIT_DONE_SHIFT	17
 
 #define SMMU_NUM_ASIDS				4
 #define SMMU_TLB_FLUSH_VA_SECTION__MASK		0xffc00000
@@ -236,7 +233,7 @@ struct smmu_as {
  * Per SMMU device - IOMMU device
  */
 struct smmu_device {
-	void __iomem	*regs, *regs_ahbarb;
+	void __iomem	*regs;
 	unsigned long	iovmm_base;	/* remappable base address */
 	unsigned long	page_count;	/* total remappable size */
 	spinlock_t	lock;
@@ -253,12 +250,14 @@ struct smmu_device {
 	unsigned long translation_enable_1;
 	unsigned long translation_enable_2;
 	unsigned long asid_security;
+
+	struct device_node *ahb;
 };
 
 static struct smmu_device *smmu_handle; /* unique for a system */
 
 /*
- *	SMMU/AHB register accessors
+ *	SMMU register accessors
  */
 static inline u32 smmu_read(struct smmu_device *smmu, size_t offs)
 {
@@ -267,15 +266,6 @@ static inline u32 smmu_read(struct smmu_device *smmu, size_t offs)
 static inline void smmu_write(struct smmu_device *smmu, u32 val, size_t offs)
 {
 	writel(val, smmu->regs + offs);
-}
-
-static inline u32 ahb_read(struct smmu_device *smmu, size_t offs)
-{
-	return readl(smmu->regs_ahbarb + offs);
-}
-static inline void ahb_write(struct smmu_device *smmu, u32 val, size_t offs)
-{
-	writel(val, smmu->regs_ahbarb + offs);
 }
 
 #define VA_PAGE_TO_PA(va, page)	\
@@ -371,9 +361,9 @@ static void smmu_flush_regs(struct smmu_device *smmu, int enable)
 	FLUSH_SMMU_REGS(smmu);
 }
 
-static void smmu_setup_regs(struct smmu_device *smmu)
+static int smmu_setup_regs(struct smmu_device *smmu)
 {
-	int i;
+	int i, err;
 	u32 val;
 
 	for (i = 0; i < smmu->num_as; i++) {
@@ -399,10 +389,8 @@ static void smmu_setup_regs(struct smmu_device *smmu)
 
 	smmu_flush_regs(smmu, 1);
 
-	val = ahb_read(smmu, AHB_XBAR_CTRL);
-	val |= AHB_XBAR_CTRL_SMMU_INIT_DONE_DONE <<
-		AHB_XBAR_CTRL_SMMU_INIT_DONE_SHIFT;
-	ahb_write(smmu, val, AHB_XBAR_CTRL);
+	err = tegra_ahb_enable_smmu(smmu->ahb);
+	return err;
 }
 
 static void flush_ptc_and_tlb(struct smmu_device *smmu,
@@ -874,18 +862,18 @@ static int tegra_smmu_resume(struct device *dev)
 {
 	struct smmu_device *smmu = dev_get_drvdata(dev);
 	unsigned long flags;
+	int err;
 
 	spin_lock_irqsave(&smmu->lock, flags);
-	smmu_setup_regs(smmu);
+	err = smmu_setup_regs(smmu);
 	spin_unlock_irqrestore(&smmu->lock, flags);
-	return 0;
+	return err;
 }
 
 static int tegra_smmu_probe(struct platform_device *pdev)
 {
 	struct smmu_device *smmu;
-	struct resource *regs, *regs2;
-	struct tegra_smmu_window *window;
+	struct resource *regs, *window;
 	struct device *dev = &pdev->dev;
 	int i, err = 0;
 
@@ -895,9 +883,8 @@ static int tegra_smmu_probe(struct platform_device *pdev)
 	BUILD_BUG_ON(PAGE_SHIFT != SMMU_PAGE_SHIFT);
 
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	regs2 = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	window = tegra_smmu_window(0);
-	if (!regs || !regs2 || !window) {
+	window = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!regs || !window) {
 		dev_err(dev, "No SMMU resources\n");
 		return -ENODEV;
 	}
@@ -913,13 +900,15 @@ static int tegra_smmu_probe(struct platform_device *pdev)
 	smmu->iovmm_base = (unsigned long)window->start;
 	smmu->page_count = (window->end + 1 - window->start) >> SMMU_PAGE_SHIFT;
 	smmu->regs = devm_ioremap(dev, regs->start, resource_size(regs));
-	smmu->regs_ahbarb = devm_ioremap(dev, regs2->start,
-					 resource_size(regs2));
-	if (!smmu->regs || !smmu->regs_ahbarb) {
+	if (!smmu->regs) {
 		dev_err(dev, "failed to remap SMMU registers\n");
 		err = -ENXIO;
 		goto fail;
 	}
+
+	smmu->ahb = of_parse_phandle(pdev->dev.of_node, "ahb", 0);
+	if (!smmu->ahb)
+		return -ENODEV;
 
 	smmu->translation_enable_0 = ~0;
 	smmu->translation_enable_1 = ~0;
@@ -947,7 +936,9 @@ static int tegra_smmu_probe(struct platform_device *pdev)
 		INIT_LIST_HEAD(&as->client);
 	}
 	spin_lock_init(&smmu->lock);
-	smmu_setup_regs(smmu);
+	err = smmu_setup_regs(smmu);
+	if (err)
+		goto fail;
 	platform_set_drvdata(pdev, smmu);
 
 	smmu->avp_vector_page = alloc_page(GFP_KERNEL);
@@ -962,8 +953,6 @@ fail:
 		__free_page(smmu->avp_vector_page);
 	if (smmu->regs)
 		devm_iounmap(dev, smmu->regs);
-	if (smmu->regs_ahbarb)
-		devm_iounmap(dev, smmu->regs_ahbarb);
 	if (smmu && smmu->as) {
 		for (i = 0; i < smmu->num_as; i++) {
 			if (smmu->as[i].pdir_page) {
@@ -995,8 +984,6 @@ static int tegra_smmu_remove(struct platform_device *pdev)
 		__free_page(smmu->avp_vector_page);
 	if (smmu->regs)
 		devm_iounmap(dev, smmu->regs);
-	if (smmu->regs_ahbarb)
-		devm_iounmap(dev, smmu->regs_ahbarb);
 	devm_kfree(dev, smmu);
 	smmu_handle = NULL;
 	return 0;
