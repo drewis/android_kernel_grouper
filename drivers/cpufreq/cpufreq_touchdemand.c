@@ -41,12 +41,12 @@
  * It helps to keep variable names smaller, simpler
  */
 
-#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
-#define DEF_FREQUENCY_UP_THRESHOLD		(80)
+#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(5)
+#define DEF_FREQUENCY_UP_THRESHOLD		(85)
 #define DEF_SAMPLING_DOWN_FACTOR		(2)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
-#define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(10)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(80)
+#define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(5)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(85)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
@@ -134,6 +134,7 @@ static struct dbs_tuners {
 	unsigned int io_is_busy;
 	unsigned int touch_floor_freq;
 	unsigned int touch_floor_time;
+	unsigned int touch_factor;
 	unsigned int touch_poke;
 	unsigned int origin_sampling_rate;
 } dbs_tuners_ins = {
@@ -142,8 +143,9 @@ static struct dbs_tuners {
 	.down_differential = DEF_FREQUENCY_DOWN_DIFFERENTIAL,
 	.ignore_nice = 0,
 	.powersave_bias = 0,
-	.touch_floor_freq = 860000,
+	.touch_floor_freq = 666000,
 	.touch_floor_time = 2000,
+	.touch_factor = 2,
 	.touch_poke = 1,
 };
 
@@ -286,6 +288,7 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(powersave_bias, powersave_bias);
 show_one(touch_floor_freq, touch_floor_freq);
 show_one(touch_floor_time, touch_floor_time);
+show_one(touch_factor, touch_factor);
 show_one(touch_poke, touch_poke);
 
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
@@ -329,7 +332,21 @@ static ssize_t store_touch_floor_time(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-static unsigned int Touch_poke_attr[4] = {1500000, 1100000, 0, 0};
+static ssize_t store_touch_factor(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+
+	dbs_tuners_ins.touch_factor = input;
+
+	return count;
+}
+
+static unsigned int Touch_poke_attr[4] = {1200000, 1000000, 0, 0};
 static unsigned int Touch_poke_boost = 1;
 static unsigned long Touch_poke_boost_till_jiffies = 0;
 
@@ -475,6 +492,7 @@ define_one_global_rw(ignore_nice_load);
 define_one_global_rw(powersave_bias);
 define_one_global_rw(touch_floor_freq);
 define_one_global_rw(touch_floor_time);
+define_one_global_rw(touch_factor);
 define_one_global_rw(touch_poke);
 
 static struct attribute *dbs_attributes[] = {
@@ -488,6 +506,7 @@ static struct attribute *dbs_attributes[] = {
 	&io_is_busy.attr,
 	&touch_floor_freq.attr,
 	&touch_floor_time.attr,
+	&touch_factor.attr,
 	&touch_poke.attr,
 	NULL
 };
@@ -522,6 +541,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	unsigned int debug_freq;
 	unsigned int debug_load;
 	unsigned int debug_iowait;
+	unsigned int down_diff;
 
 	struct cpufreq_policy *policy;
 	unsigned int j;
@@ -640,14 +660,20 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * can support the current CPU usage without triggering the up
 	 * policy. To be safe, we focus 10 points under the threshold.
 	 */
+	if (Touch_poke_boost_till_jiffies > jiffies) {
+		down_diff = (dbs_tuners_ins.down_differential * dbs_tuners_ins.touch_factor);
+	} else {
+		down_diff = dbs_tuners_ins.down_differential;
+	}
+
 	if (max_load_freq <
-	    (dbs_tuners_ins.up_threshold - dbs_tuners_ins.down_differential) *
+	    (dbs_tuners_ins.up_threshold - down_diff) *
 	     policy->cur) {
 		unsigned int freq_next;
 		unsigned int freq_min;
 		freq_next = max_load_freq /
 				(dbs_tuners_ins.up_threshold -
-				 dbs_tuners_ins.down_differential);
+				 down_diff);
 
 		/* No longer fully busy, reset rate_mult */
 		this_dbs_info->rate_mult = 1;
@@ -791,6 +817,9 @@ static void dbs_chown(void)
 	if (ret)
 		pr_err("sys_chown touch_floor_time error: %d", ret);
 
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/touch_factor", low2highuid(AID_SYSTEM), low2highgid(0));
+	if (ret)
+		pr_err("sys_chown touch_factor error: %d", ret);
 
 	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/up_threshold", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
