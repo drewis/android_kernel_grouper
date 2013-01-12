@@ -17,7 +17,7 @@ obj-$(CONFIG_SFI)		+= sfi/
 # PnP must come after ACPI since it will eventually need to check if acpi
 # was used and do nothing if so
 obj-$(CONFIG_PNP)		+= pnp/
-obj-$(CONFIG_ARM_AMBA)		+= amba/
+obj-$(CONFIG_ARM)		+= amba/
 # Many drivers will want to use DMA so this has to be made available
 # really early.
 obj-$(CONFIG_DMA_ENGINE)	+= dma/
