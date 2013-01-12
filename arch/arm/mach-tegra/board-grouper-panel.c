@@ -66,6 +66,7 @@ static struct regulator *grouper_lvds_reg;
 static struct regulator *grouper_lvds_vdd_panel;
 
 static tegra_dc_bl_output grouper_bl_output_measured = {
+	/* Stock Backlight values */
 /*	0, 5, 5, 5, 5, 5, 6, 7,
 	8, 9, 10, 11, 12, 13, 14, 15,
 	16, 17, 18, 19, 20, 21, 22, 23,
@@ -99,10 +100,12 @@ static tegra_dc_bl_output grouper_bl_output_measured = {
 	240, 241, 242, 243, 244, 245, 246, 247,
 	248, 249, 250, 251, 252, 253, 254, 255
 */
-	/* 0 - 15 */
-	0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 8, 9, 10,
-	/* 16 - 31 */
-	11, 12, 13, 13, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28,
+	/* 0 - 9 */ /* Unused by standard android brightness settings */
+	0, 1, 2, 3, 4, 5, 6, 6, 7, 7,
+	/* 10 - 15 */
+	8, 9, 10, 11, 12, 13,
+	/* 16 - 31 */ /* Screen dimmer minimum */
+	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
 	/* 32 - 47 */
 	29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
 	/* 48 - 63 */
@@ -443,7 +446,7 @@ static struct tegra_dc_sd_settings grouper_sd_settings = {
 	.bin_width = -1,
 	.aggressiveness = 1,
 	.phase_in_adjustments = true,
-	.panel_min_brightness = 19,
+	.panel_min_brightness = 16,
 	.use_vid_luma = false,
 	/* Default video coefficients */
 	.coeff = {5, 9, 2},
