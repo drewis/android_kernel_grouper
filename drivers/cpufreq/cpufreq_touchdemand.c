@@ -36,6 +36,10 @@
 #include "../../arch/arm/mach-tegra/clock.h"
 #include "../../arch/arm/mach-tegra/pm.h"
 
+#include <linux/pm_qos_params.h>
+static struct pm_qos_request_list touch_min_cpu_req;
+unsigned int min_cpus_lock;
+
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
@@ -50,7 +54,7 @@
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
-#define DEF_SAMPLING_RATE			(50000)
+#define DEF_SAMPLING_RATE			(40000)
 #define DEF_IO_IS_BUSY				(1)
 
 /*
@@ -115,7 +119,7 @@ struct cpu_dbs_info_s {
 	struct mutex timer_mutex;
 };
 
-static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
+static DEFINE_PER_CPU(struct cpu_dbs_info_s, td_cpu_dbs_info);
 
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
 
@@ -134,6 +138,7 @@ static struct dbs_tuners {
 	unsigned int io_is_busy;
 	unsigned int touch_floor_freq;
 	unsigned int touch_floor_time;
+	unsigned int touch_min_cores;
 	unsigned int touch_factor;
 	unsigned int touch_poke;
 	unsigned int origin_sampling_rate;
@@ -144,8 +149,9 @@ static struct dbs_tuners {
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 	.touch_floor_freq = 666000,
-	.touch_floor_time = 1000,
-	.touch_factor = 2,
+	.touch_floor_time = 2000,
+	.touch_min_cores = 0,
+	.touch_factor = 4,
 	.touch_poke = 1,
 };
 
@@ -205,7 +211,7 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 	unsigned int freq_hi, freq_lo;
 	unsigned int index = 0;
 	unsigned int jiffies_total, jiffies_hi, jiffies_lo;
-	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info,
+	struct cpu_dbs_info_s *dbs_info = &per_cpu(td_cpu_dbs_info,
 						   policy->cpu);
 
 	if (!dbs_info->freq_table) {
@@ -249,7 +255,7 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 
 static void touchdemand_powersave_bias_init_cpu(int cpu)
 {
-	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+	struct cpu_dbs_info_s *dbs_info = &per_cpu(td_cpu_dbs_info, cpu);
 	dbs_info->freq_table = cpufreq_frequency_get_table(cpu);
 	dbs_info->freq_lo = 0;
 }
@@ -288,6 +294,7 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(powersave_bias, powersave_bias);
 show_one(touch_floor_freq, touch_floor_freq);
 show_one(touch_floor_time, touch_floor_time);
+show_one(touch_min_cores, touch_min_cores);
 show_one(touch_factor, touch_factor);
 show_one(touch_poke, touch_poke);
 
@@ -328,6 +335,28 @@ static ssize_t store_touch_floor_time(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 
 	dbs_tuners_ins.touch_floor_time = input;
+
+	return count;
+}
+
+static ssize_t store_touch_min_cores(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input > 4)
+		input = 4;
+
+	dbs_tuners_ins.touch_min_cores = input;
+
+	/* Make sure touch lock gets reset */
+	pm_qos_update_request(&touch_min_cpu_req,
+		(s32)PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE);
+	min_cpus_lock = 0;
 
 	return count;
 }
@@ -426,7 +455,7 @@ static ssize_t store_sampling_down_factor(struct kobject *a,
 	/* Reset down sampling multiplier in case it was active */
 	for_each_online_cpu(j) {
 		struct cpu_dbs_info_s *dbs_info;
-		dbs_info = &per_cpu(od_cpu_dbs_info, j);
+		dbs_info = &per_cpu(td_cpu_dbs_info, j);
 		dbs_info->rate_mult = 1;
 	}
 	return count;
@@ -455,7 +484,7 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	/* we need to re-evaluate prev_cpu_idle */
 	for_each_online_cpu(j) {
 		struct cpu_dbs_info_s *dbs_info;
-		dbs_info = &per_cpu(od_cpu_dbs_info, j);
+		dbs_info = &per_cpu(td_cpu_dbs_info, j);
 		dbs_info->prev_cpu_idle = get_cpu_idle_time(j,
 						&dbs_info->prev_cpu_wall);
 		if (dbs_tuners_ins.ignore_nice)
@@ -492,6 +521,7 @@ define_one_global_rw(ignore_nice_load);
 define_one_global_rw(powersave_bias);
 define_one_global_rw(touch_floor_freq);
 define_one_global_rw(touch_floor_time);
+define_one_global_rw(touch_min_cores);
 define_one_global_rw(touch_factor);
 define_one_global_rw(touch_poke);
 
@@ -506,6 +536,7 @@ static struct attribute *dbs_attributes[] = {
 	&io_is_busy.attr,
 	&touch_floor_freq.attr,
 	&touch_floor_time.attr,
+	&touch_min_cores.attr,
 	&touch_factor.attr,
 	&touch_poke.attr,
 	NULL
@@ -555,6 +586,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 //	if (Touch_poke_boost_till_jiffies > jiffies)
 //		return;
 
+	if ((dbs_tuners_ins.touch_min_cores >= 2) && (Touch_poke_boost_till_jiffies < jiffies) && (min_cpus_lock == 1)) {
+		min_cpus_lock = 0;
+		pm_qos_update_request(&touch_min_cpu_req,
+			(s32)PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE);
+	}
+
 	/*
 	 * Every sampling_rate, we check, if current idle time is less
 	 * than 20% (default), then we try to increase frequency
@@ -577,7 +614,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		unsigned int load, load_freq;
 		int freq_avg;
 
-		j_dbs_info = &per_cpu(od_cpu_dbs_info, j);
+		j_dbs_info = &per_cpu(td_cpu_dbs_info, j);
 
 		cur_idle_time = get_cpu_idle_time(j, &cur_wall_time);
 		cur_iowait_time = get_cpu_iowait_time(j, &cur_wall_time);
@@ -682,7 +719,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			if (is_lp_cluster()) {
 				freq_min = idle_top_freq;
 			} else {
-				freq_min = dbs_tuners_ins.touch_floor_freq; }
+				if (dbs_tuners_ins.touch_floor_freq >= policy->min) {
+					freq_min = dbs_tuners_ins.touch_floor_freq;
+				} else {
+					freq_min = policy->min;
+				}
+			}
 		} else {
 			freq_min = policy->min;
 		}
@@ -817,6 +859,10 @@ static void dbs_chown(void)
 	if (ret)
 		pr_err("sys_chown touch_floor_time error: %d", ret);
 
+	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/touch_min_cores", low2highuid(AID_SYSTEM), low2highgid(0));
+	if (ret)
+		pr_err("sys_chown touch_min_cores error: %d", ret);
+
 	ret = sys_chown("/sys/devices/system/cpu/cpufreq/touchdemand/touch_factor", low2highuid(AID_SYSTEM), low2highgid(0));
 	if (ret)
 		pr_err("sys_chown touch_factor error: %d", ret);
@@ -845,7 +891,7 @@ static void dbs_refresh_callback(struct work_struct *unused)
 	if (lock_policy_rwsem_write(cpu) < 0)
 		return;
 
-	this_dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+	this_dbs_info = &per_cpu(td_cpu_dbs_info, cpu);
 	policy = this_dbs_info->cur_policy;
 
 	if (Touch_poke_boost)
@@ -869,6 +915,12 @@ static void dbs_refresh_callback(struct work_struct *unused)
 		CPUFREQ_RELATION_L);
 	this_dbs_info->prev_cpu_idle = get_cpu_idle_time(cpu,
 		&this_dbs_info->prev_cpu_wall);
+
+	if ((dbs_tuners_ins.touch_min_cores >= 2) && (!is_lp_cluster()) && (min_cpus_lock == 0)) {
+		pm_qos_update_request(&touch_min_cpu_req,
+				(s32)dbs_tuners_ins.touch_min_cores);
+		min_cpus_lock = 1;
+	}
 
 	unlock_policy_rwsem_write(cpu);
 }
@@ -958,7 +1010,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	unsigned int j;
 	int rc;
 
-	this_dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+	this_dbs_info = &per_cpu(td_cpu_dbs_info, cpu);
 
 	switch (event) {
 	case CPUFREQ_GOV_START:
@@ -970,7 +1022,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		dbs_enable++;
 		for_each_cpu(j, policy->cpus) {
 			struct cpu_dbs_info_s *j_dbs_info;
-			j_dbs_info = &per_cpu(od_cpu_dbs_info, j);
+			j_dbs_info = &per_cpu(td_cpu_dbs_info, j);
 			j_dbs_info->cur_policy = policy;
 
 			j_dbs_info->prev_cpu_idle = get_cpu_idle_time(j,
@@ -1062,6 +1114,9 @@ static int __init cpufreq_gov_dbs_init(void)
         cpu_lp_clk = clk_get_sys(NULL, "cpu_lp");
         idle_top_freq = clk_get_max_rate(cpu_lp_clk) / 1000;
 
+	pm_qos_add_request(&touch_min_cpu_req, PM_QOS_MIN_ONLINE_CPUS,
+			   PM_QOS_DEFAULT_VALUE);
+
 	idle_time = get_cpu_idle_time_us(cpu, &wall);
 	put_cpu();
 	if (idle_time != -1ULL) {
@@ -1087,6 +1142,7 @@ static int __init cpufreq_gov_dbs_init(void)
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
+	pm_qos_remove_request(&touch_min_cpu_req);
 	cpufreq_unregister_governor(&cpufreq_gov_touchdemand);
 }
 
