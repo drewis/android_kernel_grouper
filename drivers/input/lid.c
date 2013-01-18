@@ -163,7 +163,9 @@ static int __init lid_init(void)
                 return -ENOMEM;
         }
 
-	sysfs_create_group((struct kobject*)&lid_dev->dev.kobj, &lid_attr_group);
+	err_code = sysfs_create_group((struct kobject*)&lid_dev->dev.kobj, &lid_attr_group);
+	if (err_code != 0)
+		return err_code;
 
 	err_code = lid_input_device_create();
 	if(err_code != 0)

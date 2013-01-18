@@ -107,7 +107,7 @@ static struct device_attribute attrs[] = {
 	__ATTR(HostTestEn, RMI_RW_ATTR,
 	       rmi_f09_HostTestEn_show, rmi_f09_HostTestEn_store),
 	__ATTR(InternalLimits, RMI_RO_ATTR,
-	       rmi_f09_Limit_Register_Count_show, rmi_store_error),
+		rmi_f09_InternalLimits_show, rmi_store_error),
 	__ATTR(Result_Register_Count, RMI_RO_ATTR,
 	       rmi_f09_Result_Register_Count_show, rmi_store_error),
 };
@@ -169,11 +169,6 @@ error_exit:
 
 static void rmi_f09_remove(struct rmi_function_container *fc)
 {
-	struct rmi_fn_09_data *data = fc->data;
-	if (data) {
-		kfree(data->query.Limit_Register_Count);
-		kfree(data->query.f09_bist_query1);
-	}
 	kfree(fc->data);
 }
 

@@ -1025,7 +1025,7 @@ static void dockin_isr_work_function(struct work_struct *dat)
 static ssize_t smb347_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct i2c_client *client = charger->client;
-	uint8_t config_reg[14], cmd_reg[1], status_reg[10];
+	uint8_t config_reg[14], cmd_reg[1], status_reg[11];
 	int i, ret = 0;
 
 	ret += i2c_smbus_read_i2c_block_data(client, smb347_CHARGE, 15, config_reg)

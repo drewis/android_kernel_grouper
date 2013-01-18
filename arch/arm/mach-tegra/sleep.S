@@ -50,6 +50,15 @@
 #define TEGRA_CLK_RESET_VIRT	(TEGRA_CLK_RESET_BASE - IO_PPSB_PHYS + IO_PPSB_VIRT)
 
 /*
+ * ARM security extensions are required when compiling TRUSTED_FOUNDATIONS code,
+ * and this explicit arch_extension line fixes the build on compilers where the
+ * as-instr Makefile function fails. The Android cross-compiler is an example.
+ */
+#ifdef CONFIG_TRUSTED_FOUNDATIONS
+.arch_extension sec
+#endif
+
+/*
  * tegra_pen_lock
  *
  * spinlock implementation with no atomic test-and-set and no coherence
