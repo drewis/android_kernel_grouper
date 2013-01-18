@@ -448,7 +448,7 @@ static int __init snd_tegra_pcm_init(void)
 #ifdef CONFIG_AUDIO_MIN_PERFLOCK
 	pm_qos_add_request(&playback_cpu_freq_req,
 			PM_QOS_CPU_FREQ_MIN,
-			(s32)PLAYBACK_CPU_FREQ_MIN);
+			PM_QOS_DEFAULT_VALUE);
 #endif
 	return platform_driver_register(&tegra_pcm_driver);
 }
