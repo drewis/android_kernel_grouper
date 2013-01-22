@@ -952,7 +952,7 @@ static int cable_type_detect(void)
 					// tmtmtm end
 					} else {
 						charger->cur_cable_type = unknow_cable;
-						printk(KERN_INFO "Unkown Plug In Cable type !! retval=%d\n",retval);
+						printk(KERN_INFO "Unkown Plug In Cable type !\n");
 						if (gpio_get_value(dock_in)) {
 							charger->cur_cable_type = usb_cable;
 							success = battery_callback(usb_cable);
@@ -1025,7 +1025,7 @@ static void dockin_isr_work_function(struct work_struct *dat)
 static ssize_t smb347_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct i2c_client *client = charger->client;
-	uint8_t config_reg[14], cmd_reg[1], status_reg[11];
+	uint8_t config_reg[14], cmd_reg[1], status_reg[10];
 	int i, ret = 0;
 
 	ret += i2c_smbus_read_i2c_block_data(client, smb347_CHARGE, 15, config_reg)
