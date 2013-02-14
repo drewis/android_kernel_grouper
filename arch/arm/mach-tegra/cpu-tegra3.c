@@ -194,7 +194,7 @@ enum {
 #define NR_FSHIFT	2
 static unsigned int nr_run_thresholds[] = {
 /*      1,  2,  3,  4 - on-line cpus target */
-	5, 16, 18, UINT_MAX /* avg run threads * 4 (e.g., 9 = 2.25 threads) */
+	5,  9, 13, UINT_MAX /* avg run threads * 4 (e.g., 9 = 2.25 threads) */
 };
 static unsigned int nr_run_hysteresis = 2;	/* 0.5 thread */
 static unsigned int nr_run_last;
@@ -236,7 +236,7 @@ static noinline int tegra_cpu_speed_balance(void)
 	     (nr_run < nr_cpus) ||
 #endif
 	     tegra_cpu_edp_favor_down(nr_cpus, mp_overhead) ||
-	     (highest_speed <= idle_bottom_freq)) &&
+	     (highest_speed <= idle_bottom_freq) || (nr_cpus > max_cpus)) &&
 	    (nr_cpus > min_cpus))
 		return TEGRA_CPU_SPEED_SKEWED;
 
@@ -245,19 +245,8 @@ static noinline int tegra_cpu_speed_balance(void)
 	     (nr_run <= nr_cpus) ||
 #endif
 	     (!tegra_cpu_edp_favor_up(nr_cpus, mp_overhead)) ||
-	     (highest_speed <= idle_bottom_freq)) &&
+	     (highest_speed <= idle_bottom_freq) || (nr_cpus == max_cpus)) &&
 	    (nr_cpus >= min_cpus))
-		return TEGRA_CPU_SPEED_BIASED;
-
-#ifdef CONFIG_TEGRA_RUNNABLE_THREAD
-	if (nr_run > nr_cpus)
-		return TEGRA_CPU_SPEED_BALANCED;
-#endif
-
-	if ((nr_cpus > max_cpus) && (nr_cpus > min_cpus))
-		return TEGRA_CPU_SPEED_SKEWED;
-
-	if ((nr_cpus == max_cpus) && (nr_cpus >= min_cpus))
 		return TEGRA_CPU_SPEED_BIASED;
 
 	return TEGRA_CPU_SPEED_BALANCED;
