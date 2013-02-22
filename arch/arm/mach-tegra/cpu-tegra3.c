@@ -605,7 +605,11 @@ static int __init tegra_auto_hotplug_debug_init(void)
 	pm_qos_add_request(&min_cpu_req, PM_QOS_MIN_ONLINE_CPUS,
 			   PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&max_cpu_req, PM_QOS_MAX_ONLINE_CPUS,
+#ifdef DEFAULT_DUAL_CORE
+			   (s32)2);
+#else
 			   PM_QOS_DEFAULT_VALUE);
+#endif
 
 	if (!debugfs_create_file(
 		"min_cpus", S_IRUGO, hp_debugfs_root, NULL, &min_cpus_fops))

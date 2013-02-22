@@ -293,6 +293,13 @@ config DECREASE_MIN_BRIGHTNESS
 	help
 	Decrease minimum backlight for lowest brightness level used by android.
 
+config DEFAULT_DUAL_CORE
+	bool "Default to Dual-Core"
+	depends on TEGRA_SILICON_PLATFORM
+	default n
+	help
+	Set the default maximum number of cores to 2 instead of 4.
+
 config GPU_OVERCLOCK
 	bool "Enable GPU overclock for Tegra3"
 	depends on TEGRA_SILICON_PLATFORM
