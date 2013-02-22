@@ -2343,11 +2343,13 @@ again:
 		if (!smt && (sd->flags & SD_SHARE_CPUPOWER))
 			continue;
 
-		if (smt && !(sd->flags & SD_SHARE_CPUPOWER))
+		if (!(sd->flags & SD_SHARE_PKG_RESOURCES)) {
+			if (!smt) {
+				smt = 1;
+				goto again;
+			}
 			break;
-
-		if (!(sd->flags & SD_SHARE_PKG_RESOURCES))
-			break;
+		}
 
 		sg = sd->groups;
 		do {
@@ -2366,10 +2368,6 @@ again:
 next:
 			sg = sg->next;
 		} while (sg != sd->groups);
-	}
-	if (!smt) {
-		smt = 1;
-		goto again;
 	}
 done:
 	rcu_read_unlock();
