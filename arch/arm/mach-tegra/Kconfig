@@ -286,6 +286,13 @@ config VOLTAGE_CONTROL
 	help
 	User custom voltage control interface
 
+config DECREASE_MIN_BRIGHTNESS
+	bool "Decrease Minumum Brightness"
+	depends on TEGRA_SILICON_PLATFORM
+	default n
+	help
+	Decrease minimum backlight for lowest brightness level used by android.
+
 config GPU_OVERCLOCK
 	bool "Enable GPU overclock for Tegra3"
 	depends on TEGRA_SILICON_PLATFORM

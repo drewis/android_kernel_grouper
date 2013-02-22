@@ -100,11 +100,18 @@ static tegra_dc_bl_output grouper_bl_output_measured = {
 	240, 241, 242, 243, 244, 245, 246, 247,
 	248, 249, 250, 251, 252, 253, 254, 255
 */
-	/* 0 - 9 */ /* Unused by standard android brightness settings */
+	/* 0 - 9 */
+	/* unused by standard android brightness settings */
 	0, 1, 2, 3, 4, 5, 6, 6, 7, 7,
 	/* 10 - 15 */
+	/* backlight for level one below SD min (16-1=15) must be the same as backlihgt for SD min (13=13) to prevent flickering */
+#ifdef DECREASE_MIN_BRIGHTNESS
 	8, 9, 10, 11, 12, 13,
-	/* 16 - 31 */ /* Screen dimmer minimum */
+#else
+	13, 13, 13, 13, 13, 13,
+#endif
+	/* 16 - 31 */
+	/* screen dimmer minimum - default: 13 -> 13. currently: 16 -> 13. */
 	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
 	/* 32 - 47 */
 	29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
