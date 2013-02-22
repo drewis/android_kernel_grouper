@@ -447,7 +447,7 @@ static struct tegra_dc_mode grouper_panel_modes[] = {
 };
 
 static struct tegra_dc_sd_settings grouper_sd_settings = {
-	.enable = 1, /* enabled by default. */
+	.enable = 0, /* enabled by default. */
 	.use_auto_pwm = false,
 	.hw_update_delay = 0,
 	.bin_width = -1,
@@ -592,7 +592,7 @@ static struct tegra_dc_out grouper_disp1_out = {
 
 	.type		= TEGRA_DC_OUT_RGB,
 	.depth		= 18,
-	.dither		= TEGRA_DC_ORDERED_DITHER,
+	.dither		= TEGRA_DC_ERRDIFF_DITHER,
 
 	.modes		= grouper_panel_modes,
 	.n_modes	= ARRAY_SIZE(grouper_panel_modes),
