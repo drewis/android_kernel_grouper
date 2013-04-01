@@ -102,7 +102,11 @@ static tegra_dc_bl_output grouper_bl_output_measured = {
 */
 	/* 0 - 9 */
 	/* unused by standard android brightness settings */
-	0, 1, 2, 3, 4, 5, 6, 6, 7, 7,
+#ifdef DECREASE_MIN_BRIGHTNESS
+	0, 2, 3, 4, 6, 8, 8, 8, 8, 8,
+#else
+	0, 2, 4, 6, 8, 13, 13, 13, 13, 13,
+#endif
 	/* 10 - 15 */
 	/* backlight for level one below SD min (16-1=15) must be the same as backlihgt for SD min (13=13) to prevent flickering */
 #ifdef DECREASE_MIN_BRIGHTNESS
