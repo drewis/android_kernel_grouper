@@ -39,6 +39,11 @@
 #include "gpio-names.h"
 #include <mach/board-grouper-misc.h>
 
+
+#include <linux/module.h>
+static unsigned int min_brightness = 13;
+module_param(min_brightness, uint, 0644);
+
 /* grouper default display board pins */
 #define grouper_lvds_avdd_en		TEGRA_GPIO_PH6
 #define grouper_lvds_rst			TEGRA_GPIO_PG7
@@ -66,8 +71,8 @@ static struct regulator *grouper_lvds_reg;
 static struct regulator *grouper_lvds_vdd_panel;
 
 static tegra_dc_bl_output grouper_bl_output_measured = {
-	0, 13, 13, 13, 13, 13, 13, 13,
-	13, 13, 13, 13, 13, 13, 14, 15,
+	0, 1, 2, 3, 4, 5, 6, 7,
+	8, 9, 10, 11, 12, 13, 14, 15,
 	16, 17, 18, 19, 20, 21, 22, 23,
 	24, 25, 26, 27, 28, 29, 30, 31,
 	32, 33, 34, 35, 36, 37, 38, 39,
@@ -154,8 +159,11 @@ static int grouper_backlight_notify(struct device *unused, int brightness)
 	if (brightness > 255)
 		pr_info("Error: Brightness > 255!\n");
 	else
-		brightness = bl_output[brightness];
-
+		if ((brightness > 0) && (brightness < min_brightness)) {
+			brightness = min_brightness;
+		} else {
+			brightness = bl_output[brightness];
+		}
 	return brightness;
 }
 
