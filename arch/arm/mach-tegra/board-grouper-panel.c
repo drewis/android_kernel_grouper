@@ -66,9 +66,8 @@ static struct regulator *grouper_lvds_reg;
 static struct regulator *grouper_lvds_vdd_panel;
 
 static tegra_dc_bl_output grouper_bl_output_measured = {
-	/* Stock Backlight values */
-/*	0, 5, 5, 5, 5, 5, 6, 7,
-	8, 9, 10, 11, 12, 13, 14, 15,
+	0, 13, 13, 13, 13, 13, 13, 13,
+	13, 13, 13, 13, 13, 13, 14, 15,
 	16, 17, 18, 19, 20, 21, 22, 23,
 	24, 25, 26, 27, 28, 29, 30, 31,
 	32, 33, 34, 35, 36, 37, 38, 39,
@@ -99,53 +98,6 @@ static tegra_dc_bl_output grouper_bl_output_measured = {
 	232, 233, 234, 235, 236, 237, 238, 239,
 	240, 241, 242, 243, 244, 245, 246, 247,
 	248, 249, 250, 251, 252, 253, 254, 255
-*/
-	/* 0 - 9 */
-	/* unused by standard android brightness settings */
-#ifdef DECREASE_MIN_BRIGHTNESS
-	0, 2, 3, 4, 6, 8, 8, 8, 8, 8,
-#else
-	0, 2, 4, 6, 8, 13, 13, 13, 13, 13,
-#endif
-	/* 10 - 15 */
-	/* backlight for level one below SD min (16-1=15) must be the same as backlihgt for SD min (13=13) to prevent flickering */
-#ifdef DECREASE_MIN_BRIGHTNESS
-	8, 9, 10, 11, 12, 13,
-#else
-	13, 13, 13, 13, 13, 13,
-#endif
-	/* 16 - 31 */
-	/* screen dimmer minimum - default: 13 -> 13. currently: 16 -> 13. */
-	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
-	/* 32 - 47 */
-	29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-	/* 48 - 63 */
-	45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
-	/* 64 - 79 */
-	61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76,
-	/* 80 - 95 */
-	77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92,
-	/* 96 - 111 */
-	93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108,
-	/* 112 - 127 */
-	109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124,
-	/* 128 - 143 */
-	125, 126, 127, 128, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141,
-	/* 144 - 159 */
-	142, 143, 144, 145, 146, 147, 148, 148, 149, 150, 151, 152, 153, 154, 155, 156,
-	/* 160 - 175 */
-	157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172,
-	/* 176 - 191 */
-	173, 174, 175, 176, 177, 179, 180, 181, 182, 184, 185, 186, 187, 188, 189, 190,
-	/* 192 - 207 */
-	191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206,
-	/* 208 - 223 */
-	207, 208, 209, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
-	/* 224 - 239 */
-	224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239,
-	/* 240 - 255 */
-	240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255
-
 };
 
 static p_tegra_dc_bl_output bl_output;
@@ -435,7 +387,8 @@ static struct resource grouper_disp2_resources[] = {
 #endif
 
 static struct tegra_dc_mode grouper_panel_modes[] = {
-{
+	{
+		/* 1280x800@60Hz */
 		.pclk = 68000000,
 		.h_ref_to_sync = 1,
 		.v_ref_to_sync = 1,
@@ -451,13 +404,13 @@ static struct tegra_dc_mode grouper_panel_modes[] = {
 };
 
 static struct tegra_dc_sd_settings grouper_sd_settings = {
-	.enable = 0, /* enabled by default. */
+	.enable = 1, /* enabled by default. */
 	.use_auto_pwm = false,
 	.hw_update_delay = 0,
 	.bin_width = -1,
 	.aggressiveness = 1,
 	.phase_in_adjustments = true,
-	.panel_min_brightness = 16,
+	.panel_min_brightness = 13,
 	.use_vid_luma = false,
 	/* Default video coefficients */
 	.coeff = {5, 9, 2},
@@ -596,7 +549,7 @@ static struct tegra_dc_out grouper_disp1_out = {
 
 	.type		= TEGRA_DC_OUT_RGB,
 	.depth		= 18,
-	.dither		= TEGRA_DC_ERRDIFF_DITHER,
+	.dither		= TEGRA_DC_ORDERED_DITHER,
 
 	.modes		= grouper_panel_modes,
 	.n_modes	= ARRAY_SIZE(grouper_panel_modes),
