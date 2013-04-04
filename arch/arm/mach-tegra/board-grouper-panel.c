@@ -41,8 +41,8 @@
 
 
 #include <linux/module.h>
-static unsigned int min_brightness = 13;
-module_param(min_brightness, uint, 0644);
+static unsigned int min_backlight = 13;
+module_param(min_backlight, uint, 0644);
 
 /* grouper default display board pins */
 #define grouper_lvds_avdd_en		TEGRA_GPIO_PH6
@@ -148,6 +148,7 @@ static void grouper_backlight_exit(struct device *dev)
 static int grouper_backlight_notify(struct device *unused, int brightness)
 {
 	int cur_sd_brightness = atomic_read(&sd_brightness);
+	int min_brightness = min_backlight;
 
 	/* Set the backlight GPIO pin mode to 'backlight_enable' */
 	//gpio_set_value(grouper_bl_enb, !!brightness);
@@ -155,12 +156,16 @@ static int grouper_backlight_notify(struct device *unused, int brightness)
 	/* SD brightness is a percentage, 8-bit value. */
 	brightness = (brightness * cur_sd_brightness) / 255;
 
+	/* Ensure that min backlight goes up to at least 10 to prevent auto-min != slider-min */
+	if (min_backlight < 10)
+		min_brightness = 10;
+
 	/* Apply any backlight response curve */
 	if (brightness > 255)
 		pr_info("Error: Brightness > 255!\n");
 	else
 		if ((brightness > 0) && (brightness < min_brightness)) {
-			brightness = min_brightness;
+			brightness = min_backlight;
 		} else {
 			brightness = bl_output[brightness];
 		}
