@@ -40,7 +40,7 @@
 #include <mach/board-grouper-misc.h>
 
 #include <linux/module.h>
-static bool otf_scaling = 0;
+static bool otf_scaling = 1;
 module_param(otf_scaling, bool, 0644);
 static unsigned int min_backlight = 10;
 module_param(min_backlight, uint, 0644);
@@ -171,8 +171,8 @@ static int grouper_backlight_notify(struct device *unused, int brightness)
 			if (otf_scaling == 0) {
 				int min_bl_adj = min_backlight;
 				/* Ensure that min backlight goes up to at least 10 to prevent auto-min != slider-min */
-				if (min_backlight < 10)
-					min_bl_adj = 10;
+				if (min_backlight < 11)
+					min_bl_adj = 11;
 				if ((brightness > 0) && (brightness < min_bl_adj)) {
 					brightness = min_backlight;
 				} else if (brightness > max_backlight) {
