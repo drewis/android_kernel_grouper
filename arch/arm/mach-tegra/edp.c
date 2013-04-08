@@ -362,10 +362,17 @@ void __init tegra_init_cpu_edp_limits(unsigned int regulator_mA)
 
 	for (j = 0; j < edp_limits_size; j++) {
 		e[j].temperature = (int)t[i+j].temperature;
-		e[j].freq_limits[0] = (unsigned int)(t[i+j].freq_limits[0]-40) * 10000;
-		e[j].freq_limits[1] = (unsigned int)(t[i+j].freq_limits[1]-30) * 10000;
-		e[j].freq_limits[2] = (unsigned int)(t[i+j].freq_limits[2]-30) * 10000;
-		e[j].freq_limits[3] = (unsigned int)(t[i+j].freq_limits[3]-30) * 10000;
+			if (j == 0) {
+				e[j].freq_limits[0] = (unsigned int)(t[i+j].freq_limits[0]-15) * 10000;
+				e[j].freq_limits[1] = (unsigned int)(t[i+j].freq_limits[1]-5) * 10000;
+				e[j].freq_limits[2] = (unsigned int)(t[i+j].freq_limits[2]-5) * 10000;
+				e[j].freq_limits[3] = (unsigned int)(t[i+j].freq_limits[3]-5) * 10000;
+			} else {	
+				e[j].freq_limits[0] = (unsigned int)(t[i+j].freq_limits[0]-30) * 10000;
+				e[j].freq_limits[1] = (unsigned int)(t[i+j].freq_limits[1]-20) * 10000;
+				e[j].freq_limits[2] = (unsigned int)(t[i+j].freq_limits[2]-20) * 10000;
+				e[j].freq_limits[3] = (unsigned int)(t[i+j].freq_limits[3]-20) * 10000;
+			}
 	}
 
 	if (edp_limits != edp_default_limits)
