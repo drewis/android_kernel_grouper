@@ -1,0 +1,8 @@
+/dts-v1/;
+
+/include/ "tegra30.dtsi"
+
+/ {
+	model = "NVIDIA Tegra30 Grouper";
+	compatible = "nvidia,grouper", "nvidia,tegra30";
+};

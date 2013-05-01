@@ -135,5 +135,10 @@
 		reg = <0xc8000600 0x200>;
 		interrupts = < 63 >;
 	};
+
+	ahb: ahb at 6000c004 {
+		compatible = "nvidia,tegra20-ahb";
+		reg = <0x6000c004 0x10c>; /* AHB Arbitration + Gizmo Controller */
+	};
 };
 
