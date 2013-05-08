@@ -340,16 +340,16 @@ config LP_OVERCLOCK
 	bool "Enable LP overclock for Tegra3"
 	depends on TEGRA_SILICON_PLATFORM
 	default n
-	help
-	Choose y to overclock the LP core. 
-	If Off, maximum clock speed is 475MHz.
-	If On, LP clock speed can be selected.
+	---help---
+	  Choose y to overclock the LP core. 
+	  If Off, maximum clock speed is 475MHz.
+	  If On, LP clock speed can be selected.
 
 choice
 
 	depends on LP_OVERCLOCK
 	prompt "Maximum LP Rate"
-	default GPU_OC_666
+	default LP_OC_666
 	---help---
 	  Select the desired LP overclock rate.
 
