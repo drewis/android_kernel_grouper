@@ -491,6 +491,12 @@
 #define  SD_ONESHOT_ENABLE		(1 << 10)
 #define  SD_CORRECTION_MODE_AUTO	(0 << 11)
 #define  SD_CORRECTION_MODE_MAN		(1 << 11)
+#define  SD_K_LIMIT_ENABLE		(1 << 12)
+#define  SD_WINDOW_ENABLE		(1 << 13)
+#define  SD_SOFT_CLIPPING_ENABLE	(1 << 14)
+#define  SD_SMOOTH_K_ENABLE		(1 << 15)
+#define  SD_VSYNC			(0 << 28)
+#define  SD_VPULSE2			(1 << 28)
 
 #define NUM_BIN_WIDTHS 4
 #define STEPS_PER_AGG_LVL 64
@@ -548,6 +554,24 @@
 #define  SD_MAN_K_R(x)			(((x) & 0x3ff) << 0)
 #define  SD_MAN_K_G(x)			(((x) & 0x3ff) << 10)
 #define  SD_MAN_K_B(x)			(((x) & 0x3ff) << 20)
+
+#define DC_DISP_SD_K_LIMIT			0x4df
+#define  SD_K_LIMIT(x)			(((x) & 0x3ff) << 0)
+
+#define DC_DISP_SD_WINDOW_POSITION		0x4e0
+#define  SD_WIN_H_POSITION(x)		(((x) & 0x1fff) << 0)
+#define  SD_WIN_V_POSITION(x)		(((x) & 0x1fff) << 16)
+
+#define DC_DISP_SD_WINDOW_SIZE			0x4e1
+#define  SD_WIN_H_SIZE(x)		(((x) & 0x1fff) << 0)
+#define  SD_WIN_V_SIZE(x)		(((x) & 0x1fff) << 16)
+
+#define DC_DISP_SD_SOFT_CLIPPING		0x4e2
+#define  SD_SOFT_CLIPPING_THRESHOLD(x)	(((x) & 0xff) << 0)
+#define  SD_SOFT_CLIPPING_RECIP(x)	(((x) & 0xffff) << 16)
+
+#define DC_DISP_SD_SMOOTH_K			0x4e3
+#define  SD_SMOOTH_K_INCR(x)		(((x) & 0x3fff) << 0)
 
 #define  NUM_AGG_PRI_LVLS		4
 #define  SD_AGG_PRI_LVL(x)		((x) >> 3)

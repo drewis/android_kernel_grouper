@@ -33,6 +33,12 @@ config TEGRA_DC_EXTENSIONS
 	  This exposes support for extended capabilities of the Tegra display
 	  controller to userspace drivers.
 
+config TEGRA_SD_GEN2
+	bool "Tegra SD Gen2 support"
+	default n
+	help
+	  backported from Tegra4 (tripndroid)
+
 config TEGRA_NVMAP
 	bool "Tegra GPU memory management driver (nvmap)"
 	default y
