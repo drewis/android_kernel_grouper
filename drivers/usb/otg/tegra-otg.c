@@ -233,10 +233,8 @@ static void irq_work(struct work_struct *work)
 		dev_info(tegra->otg.dev, "%s --> %s\n", tegra_state_name(from),
 					      tegra_state_name(to));
 
-        if(smb347_deep_sleep>0) {
-            smb347_deep_sleep = 0;
-            dev_info(tegra->otg.dev, "smb347_deep_sleep cleared\n");
-        }
+        smb347_deep_sleep = 0;
+        dev_info(tegra->otg.dev, "smb347_deep_sleep cleared\n");
 
 		// tmtmtm
 		if (to == OTG_STATE_A_SUSPEND) {
