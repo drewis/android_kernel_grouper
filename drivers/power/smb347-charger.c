@@ -131,8 +131,7 @@ static unsigned int pcba_ver;
 static int gpio_dock_in = 0;
 
 // tmtmtm: also modify 'export KBUILD_BUILD_USER=timur-usbhost-fi-2013-01-01
-//static int fixed_install_mode = 0;
-extern int fixed_install_mode;
+static int fixed_install_mode = 1;
 volatile int smb347_deep_sleep = 0;  // imported by ehci-tegra.c
 static volatile int host_mode_charging_state = 0;
 static volatile int lastExternalPowerState = 0;
@@ -1198,7 +1197,7 @@ static void inok_isr_work_function(struct work_struct *dat)
 
         if(!lastExternalPowerState) {
 	        // make external power detectable in case it is coming back
-	        printk("inok_isr_work_function make external power detectable1\n");
+	        printk("inok_isr_work_function make external power detectable\n");
 	        int ret = smb347_configure_interrupts(client);
 	        if (ret < 0)
 		        dev_err(&client->dev, "%s() error in configuring"
@@ -1225,13 +1224,11 @@ static void inok_isr_work_function(struct work_struct *dat)
 		}
 
         // make external power detectable
-        printk("inok_isr_work_function make external power detectable2\n");
-	    // 2013-01-28: crash here after
+        printk("inok_isr_work_function make external power detectable\n");
         int ret = smb347_configure_interrupts(client);
         if (ret < 0)
 	        dev_err(&client->dev, "%s() error in configuring"
 				        "otg..\n", __func__);
-        printk("inok_isr_work_function make external power detectable2 done\n");
 		return;
 	}
 
