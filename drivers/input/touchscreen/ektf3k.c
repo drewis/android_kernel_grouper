@@ -2,6 +2,9 @@
  *
  * Copyright (C) 2011 Elan Microelectronics Corporation.
  *
+ * Sweep2wake and Doubletap2wake for Nexus 7 (flo)
+ * Copyright (C) 2013 Aaron Segaert (flar2) asegaert at gmail.com. All rights reserved.
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -27,6 +30,8 @@
 #include <linux/jiffies.h>
 #include <linux/miscdevice.h>
 #include <linux/debugfs.h>
+
+#include <linux/sweep2wake.h>
 
 // for linux 2.6.36.3
 #include <linux/cdev.h>
@@ -89,6 +94,7 @@
 #define IOCTL_RESUME  _IOR(ELAN_IOCTLID, 14, int)
 #define IOCTL_FW_UPDATE _IOR(ELAN_IOCTLID, 22, int) 
 
+//don't use firmware update
 #define FIRMWARE_UPDATE_WITH_HEADER 1 
 
 uint16_t checksum_err=0;
@@ -97,6 +103,7 @@ int FW_VERSION=0x00;
 int X_RESOLUTION=0x00;
 int Y_RESOLUTION=0x00;
 int FW_ID=0x00;
+int BOOTCODE_VERSION=0x00;
 static int work_lock=0x00;
 
 #define USB_NO_Cable 0
@@ -106,6 +113,9 @@ static int work_lock=0x00;
 #define USB_Cable ((1 << (USB_SHIFT)) | (USB_DETECT_CABLE))
 #define USB_AC_Adapter ((1 << (AC_SHIFT)) | (USB_DETECT_CABLE))
 #define USB_CALBE_DETECT_MASK (USB_Cable  | USB_DETECT_CABLE)
+/*use for slim port to hdmi*/
+#define SLIM_HDMI_MODE 10
+#define HDMI_POWER_SOURCE_CMD 3
 static unsigned now_usb_cable_status=0;
 static unsigned int gPrint_point = 0; 
 
@@ -162,16 +172,18 @@ struct elan_ktf3k_ts_data {
 static struct elan_ktf3k_ts_data *private_ts = NULL;
 static int __fw_packet_handler(struct i2c_client *client, int imediate);
 static int elan_ktf3k_ts_rough_calibrate(struct i2c_client *client);
-static int elan_ktf3k_ts_hw_reset(struct i2c_client *client);
+static int elan_ktf3k_ts_hw_reset(struct i2c_client *client, unsigned int time);
 static int elan_ktf3k_ts_resume(struct i2c_client *client);
+
 #ifdef FIRMWARE_UPDATE_WITH_HEADER
-static int firmware_update_header(struct i2c_client *client, const unsigned char *firmware, unsigned int page_number);
+static int firmware_update_header(struct i2c_client *client, unsigned char *firmware, unsigned int page_number);
 #endif
+
 static struct semaphore pSem;
 static int mTouchStatus[FINGER_NUM] = {0};
 
 #define FIRMWARE_PAGE_SIZE 132
-#define MAX_FIRMWARE_SIZE 32868
+#define MAX_FIRMWARE_SIZE 52800
 #define FIRMWARE_ACK_SIZE 2
 
 /* Debug levels */
@@ -188,6 +200,192 @@ static int debug = DEBUG_INFO;
 		if (debug >= (level)) \
 			printk("[ektf3k]:" __VA_ARGS__); \
 	} while (0)
+
+
+/* sweep2wake */
+
+static struct input_dev *sweep2wake_pwrdev;
+static DEFINE_MUTEX(s2w_lock);
+int dt2w_switch = 1;
+int dt2w_switch_temp = 1;
+int dt2w_changed = 0;
+int s2w_switch = 1;
+int s2w_switch_temp = 1;
+int s2w_changed = 0;
+bool scr_suspended = false;
+int tripon = 0;
+int tripoff = 0;
+unsigned long triptime = 0;
+unsigned long dt2w_time[2] = {0, 0};
+unsigned int dt2w_x[2] = {0, 0};
+unsigned int dt2w_y[2] = {0, 0};
+int status[2] = {0,0};
+int dt2w_count = 0;
+#define S2W_TIMEOUT 75
+#define DT2W_TIMEOUT_MAX 40
+#define DT2W_TIMEOUT_MIN 8
+#define DT2W_DELTA 60
+
+void sweep2wake_setdev(struct input_dev * input_device) {
+	sweep2wake_pwrdev = input_device;
+	return;
+}
+
+EXPORT_SYMBOL(sweep2wake_setdev);
+
+static void reset_sweep2wake(int s2w, int dt2w)
+{
+	//reset sweep2wake
+	if (s2w) {
+		tripoff = 0;
+		tripon = 0;
+		triptime = 0;
+	}
+
+	//reset doubletap2wake
+	if (dt2w) {
+		dt2w_time[0] = 0;
+		dt2w_x[0] = 0;
+		dt2w_y[0] = 0;
+		dt2w_time[1] = 0;
+		dt2w_x[1] = 0;
+		dt2w_y[1] = 0;
+		dt2w_count = 0;
+	}
+
+	return;
+}
+
+static void sweep2wake_presspwr(struct work_struct *sweep2wake_presspwr_work)
+{
+	reset_sweep2wake(1,1);
+
+	input_event(sweep2wake_pwrdev, EV_KEY, KEY_POWER, 1);
+	input_event(sweep2wake_pwrdev, EV_SYN, 0, 0);
+	msleep(20);
+	input_event(sweep2wake_pwrdev, EV_KEY, KEY_POWER, 0);
+	input_event(sweep2wake_pwrdev, EV_SYN, 0, 0);
+	msleep(20);
+	mutex_unlock(&s2w_lock);
+}
+
+static DECLARE_WORK(sweep2wake_presspwr_work, sweep2wake_presspwr);
+
+void sweep2wake_pwrtrigger(void)
+{
+	if (mutex_trylock(&s2w_lock)) 
+		schedule_work(&sweep2wake_presspwr_work);
+}
+
+int sweep2wake_touch_check(int i)
+{
+	status[1] = status[0];
+	status[0] = mTouchStatus[i];
+
+	if (status[0] != status[1]) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+void sweep2wake_func(int x, int y, unsigned long time, int i)
+{
+	int sametouch = sweep2wake_touch_check(i);
+
+	//printk("[sweep2wake]: x,y(%d,%d) jiffies:%lu\n", x, y, time);
+
+	if (!sametouch){
+		reset_sweep2wake(1,0);
+		return;
+	}
+
+	//left->right
+	if (scr_suspended == true && s2w_switch == 1) {
+		if (y < 100) {
+			tripon = 1;
+			triptime = time;
+		} else if (tripon == 1 && y > 488  && time - triptime < 25) {
+			tripon = 2;
+		} else if (tripon == 2 && y > 896 && time - triptime < 50) {
+			tripon = 3;
+		} else if (tripon == 3 && y > 1150 && time - triptime < S2W_TIMEOUT) {
+			printk(KERN_INFO "[sweep2wake]: ON");
+			sweep2wake_pwrtrigger();
+		} 			
+	//right->left
+	} else if (scr_suspended == false && s2w_switch > 0 && x > 2000) {
+		if (y > 1250) {
+			tripoff = 1;
+			triptime = time;
+		} else if (tripoff == 1 && y < 896  && time - triptime < 25) {
+			tripoff = 2;
+		} else if (tripoff == 2 && y < 488 && time - triptime < 50) {
+			tripoff = 3;
+		} else if (tripoff == 3 && y < 100 && (time - triptime < S2W_TIMEOUT)) {
+			printk(KERN_INFO "[sweep2wake]: OFF");
+			sweep2wake_pwrtrigger();
+		} 
+	}
+
+}
+
+void doubletap2wake_func(int x, int y)
+{
+
+	int delta_x = 0;
+	int delta_y = 0;
+
+	dt2w_count++;
+
+	//printk("dt2w: time=%lu\n", jiffies);
+
+        dt2w_time[1] = dt2w_time[0];
+        dt2w_time[0] = jiffies;
+
+	if ((dt2w_time[0] - dt2w_time[1]) > 45) {
+		dt2w_count = 0;
+		//printk("dt2w: reset dt2w_count\n");
+	}
+
+	if ((dt2w_time[0] - dt2w_time[1]) < 8 || dt2w_count > 1) {
+		//printk("dt2w: too fast, dt2w_count=%d\n", dt2w_count);
+		return;
+	} else {
+		dt2w_count = 0;
+	}
+
+	dt2w_x[1] = dt2w_x[0];
+       	dt2w_x[0] = x;
+	dt2w_y[1] = dt2w_y[0];
+       	dt2w_y[0] = y;
+
+	delta_x = (dt2w_x[0]-dt2w_x[1]);
+	delta_y = (dt2w_y[0]-dt2w_y[1]);
+
+	if ((abs(delta_x) < DT2W_DELTA) && (abs(delta_y) < DT2W_DELTA)) {
+
+		if (y > 50 && y < 1300
+			 && ((dt2w_time[0] - dt2w_time[1]) > DT2W_TIMEOUT_MIN)
+			 && ((dt2w_time[0] - dt2w_time[1]) < DT2W_TIMEOUT_MAX)) {
+
+                        //printk("[dt2w]: OFF->ON\n");
+                        sweep2wake_pwrtrigger();
+
+		} else {
+			//printk("dt2w: wrong time\n");
+		}
+
+	} else {
+		//printk("dt2w: wrong spot\n");
+	}
+
+        return;
+}
+
+
+/* end sweep2wake */
+
 
 int elan_iap_open(struct inode *inode, struct file *filp){ 
 	touch_debug(DEBUG_INFO, "[ELAN]into elan_iap_open\n");
@@ -260,7 +458,7 @@ static long elan_iap_ioctl(/*struct inode *inode,*/ struct file *filp,    unsign
 		case IOCTL_MINOR_FW_VER:            
 			break;        
 		case IOCTL_RESET:
-			return elan_ktf3k_ts_hw_reset(private_ts->client);
+			return elan_ktf3k_ts_hw_reset(private_ts->client, 0);
 		case IOCTL_IAP_MODE_LOCK:
 			work_lock=1;
 			disable_irq(private_ts->client->irq);
@@ -374,6 +572,72 @@ static ssize_t elan_show_status(struct device *dev, struct device_attribute *dev
 
 DEVICE_ATTR(elan_touchpanel_status, S_IRUGO, elan_show_status, NULL);
 
+
+
+/* sweep2wake sysfs */
+static ssize_t elan_ktf3k_sweep2wake_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	if (s2w_switch == s2w_switch_temp )
+		count += sprintf(buf, "%d\n", s2w_switch);
+	else
+		count += sprintf(buf, "%d->%d\n", s2w_switch, s2w_switch_temp);
+
+	return count;
+}
+
+static ssize_t elan_ktf3k_sweep2wake_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	if (buf[0] >= '0' && buf[0] <= '2' && buf[1] == '\n')
+                if (s2w_switch != buf[0] - '0') {
+		        s2w_switch_temp = buf[0] - '0';
+			if (!scr_suspended)
+				s2w_switch = s2w_switch_temp;
+			else
+				s2w_changed = 1;
+		}
+
+	return count;
+}
+
+static DEVICE_ATTR(sweep2wake, (S_IWUSR|S_IRUGO),
+	elan_ktf3k_sweep2wake_show, elan_ktf3k_sweep2wake_dump);
+
+static ssize_t elan_ktf3k_doubletap2wake_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	if (dt2w_switch == dt2w_switch_temp) 
+		count += sprintf(buf, "%d\n", dt2w_switch);
+	else
+		count += sprintf(buf, "%d->%d\n", dt2w_switch, dt2w_switch_temp);
+
+	return count;
+}
+
+static ssize_t elan_ktf3k_doubletap2wake_dump(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
+		if (dt2w_switch != buf[0] - '0') {
+			dt2w_switch_temp = buf[0] - '0';
+			if (!scr_suspended)
+				dt2w_switch = dt2w_switch_temp;
+			else
+				dt2w_changed = 1;
+		}
+
+	return count;
+}
+
+static DEVICE_ATTR(doubletap2wake, (S_IWUSR|S_IRUGO),
+	elan_ktf3k_doubletap2wake_show, elan_ktf3k_doubletap2wake_dump); 
+
+/* end sweep2wake sysfs*/
+
+
 static int check_fw_version(const unsigned char*firmware, unsigned int size, int fw_version){
        int id, version;
 	   
@@ -386,12 +650,18 @@ static int check_fw_version(const unsigned char*firmware, unsigned int size, int
 	 	      (firmware[size - 2*FIRMWARE_PAGE_SIZE + 123] << 8);
 	 
 	 touch_debug(DEBUG_INFO, "The firmware was version 0x%X and id:0x%X\n", version, id);
-	 if(id == 0x3021)
-	     return fw_version == 0xFFFF ? 1 : version - fw_version; // if the touch firmware was empty, always update firmware
-	 else 
-	     return 0; // this buffer doesn't contain the touch firmware
+
+	 if (id == 0x3029 && BOOTCODE_VERSION >= 0x6046) {
+		/*if the touch firmware was empty, always update firmware*/
+		return fw_version == 0xFFFF ? 1 : version - fw_version;
+	 } else {
+		/*this buffer doesn't contain the touch firmware*/
+		return 0;
+	 }
 	 
 }
+
+/*
 static ssize_t update_firmware(struct device *dev, struct device_attribute *devattr,const char *buf, size_t count)
 {
 	 struct i2c_client *client = to_i2c_client(dev);
@@ -427,7 +697,7 @@ static ssize_t update_firmware(struct device *dev, struct device_attribute *deva
 	 if(RECOVERY || check_fw_version(firmware, pos, ts->fw_ver) > 0){
 	     touch_debug(DEBUG_INFO, "Firmware update start!\n");	
 	     do{
-	         ret = firmware_update_header(client, firmware, page_number);
+//	         ret = firmware_update_header(client, firmware, page_number);//add by mars
 	         touch_debug(DEBUG_INFO, "Firmware update finish ret=%d retry=%d !\n", ret, retry++);
 	     }while(ret != 0 && retry < 3);
 	     if(ret == 0 && RECOVERY) RECOVERY = 0;
@@ -436,19 +706,23 @@ static ssize_t update_firmware(struct device *dev, struct device_attribute *deva
 	     
 	 return count;
 }
-
-DEVICE_ATTR(update_fw,  S_IWUSR, NULL, update_firmware);
+*/
+//DEVICE_ATTR(update_fw,  S_IWUSR, NULL, update_firmware);
 
 
 static struct attribute *elan_attr[] = {
 	&dev_attr_elan_touchpanel_status.attr,
 	&dev_attr_vendor.attr,
 	&dev_attr_gpio.attr,
-	&dev_attr_update_fw.attr,
+	//&dev_attr_update_fw.attr,
+/* sweep2wake sysfs */
+	&dev_attr_sweep2wake.attr,
+	&dev_attr_doubletap2wake.attr,
 	NULL
 };
 
 static struct kobject *android_touch_kobj;
+
 
 static int elan_ktf3k_touch_sysfs_init(void)
 {
@@ -460,7 +734,7 @@ static int elan_ktf3k_touch_sysfs_init(void)
 		ret = -ENOMEM;
 		return ret;
 	}
-	ret = sysfs_create_file(android_touch_kobj, &dev_attr_gpio.attr);
+/*	ret = sysfs_create_file(android_touch_kobj, &dev_attr_gpio.attr);
 	if (ret) {
 		touch_debug(DEBUG_ERROR, "[elan]%s: sysfs_create_file failed\n", __func__);
 		return ret;
@@ -470,13 +744,29 @@ static int elan_ktf3k_touch_sysfs_init(void)
 		touch_debug(DEBUG_ERROR, "[elan]%s: sysfs_create_group failed\n", __func__);
 		return ret;
 	}
+*/
+/* sweep2wake sysfs */
+	ret = sysfs_create_file(android_touch_kobj, &dev_attr_sweep2wake.attr);
+	if (ret) {
+		touch_debug(DEBUG_ERROR, "[elan]%s: sysfs_create_group failed\n", __func__);
+		return ret;
+	}
+	ret = sysfs_create_file(android_touch_kobj, &dev_attr_doubletap2wake.attr);
+	if (ret) {
+		touch_debug(DEBUG_ERROR, "[elan]%s: sysfs_create_group failed\n", __func__);
+		return ret;
+	}
+
 	return 0 ;
 }
 
 static void elan_touch_sysfs_deinit(void)
 {
-	sysfs_remove_file(android_touch_kobj, &dev_attr_vendor.attr);
-	sysfs_remove_file(android_touch_kobj, &dev_attr_gpio.attr);
+//	sysfs_remove_file(android_touch_kobj, &dev_attr_vendor.attr);
+//	sysfs_remove_file(android_touch_kobj, &dev_attr_gpio.attr);
+/* sweep2wake sysfs */
+	sysfs_remove_file(android_touch_kobj, &dev_attr_sweep2wake.attr);
+	sysfs_remove_file(android_touch_kobj, &dev_attr_doubletap2wake.attr);
 	kobject_del(android_touch_kobj);
 }
 
@@ -536,7 +826,7 @@ static int elan_ktf3k_ts_read_command(struct i2c_client *client,
 			   u8* cmd, u16 cmd_length, u8 *value, u16 value_length){
        struct i2c_adapter *adapter = client->adapter;
 	struct i2c_msg msg[2];
-	__le16 le_addr;
+	//__le16 le_addr;
 	struct elan_ktf3k_ts_data *ts;
 	int length = 0;
 
@@ -561,7 +851,7 @@ static int elan_ktf3k_i2c_read_packet(struct i2c_client *client,
 	u8 *value, u16 value_length){
        struct i2c_adapter *adapter = client->adapter;
 	struct i2c_msg msg[1];
-	__le16 le_addr;
+	//__le16 le_addr;
 	struct elan_ktf3k_ts_data *ts;
 	int length = 0;
 
@@ -585,7 +875,7 @@ static int __hello_packet_handler(struct i2c_client *client)
 {
 	int rc;
 	uint8_t buf_recv[4] = { 0 };
-	uint8_t buf_recv1[4] = { 0 };
+	//uint8_t buf_recv1[4] = { 0 };
 
 	rc = elan_ktf3k_ts_poll(client);
 	if (rc < 0) {
@@ -615,7 +905,7 @@ static int wait_for_IRQ_Low(struct i2c_client *client, int utime){
 	      return 0; 
     }while(retry_times-- > 0);
 	
-    touch_debug("Wait IRQ time out\n");
+    touch_debug(DEBUG_INFO,"Wait IRQ time out\n");
     return -1;
 }
 
@@ -628,6 +918,7 @@ static int __fw_packet_handler(struct i2c_client *client, int immediate)
 	uint8_t cmd_x[] = {0x53, 0x60, 0x00, 0x00}; /*Get x resolution*/
 	uint8_t cmd_y[] = {0x53, 0x63, 0x00, 0x00}; /*Get y resolution*/
 	uint8_t cmd_id[] = {0x53, 0xf0, 0x00, 0x01}; /*Get firmware ID*/
+	uint8_t cmd_boot_id[] = {0x53, 0x10, 0x00, 0x01};/*Get boot code version*/
 	uint8_t buf_recv[4] = {0};
 // Firmware version
 	rc = elan_ktf3k_ts_read_command(client, cmd, 4, buf_recv, 4);
@@ -683,6 +974,20 @@ static int __fw_packet_handler(struct i2c_client *client, int immediate)
 	    FW_ID = ts->fw_id;
 	    touch_debug(DEBUG_INFO, "[elan] %s: firmware id: 0x%4.4x\n", __func__, ts->fw_id);
 	}
+/*boot code version*/
+	rc = elan_ktf3k_ts_read_command(client, cmd_boot_id, 4, buf_recv, 4);
+	if (rc < 0)
+		return rc;
+
+	if (immediate) {
+	    wait_for_IRQ_Low(client, 1000);
+	    elan_ktf3k_i2c_read_packet(client, buf_recv, 4);
+	    major = ((buf_recv[1] & 0x0f) << 4) | ((buf_recv[2] & 0xf0) >> 4);
+	    minor = ((buf_recv[2] & 0x0f) << 4) | ((buf_recv[3] & 0xf0) >> 4);
+
+	    BOOTCODE_VERSION = major << 8 | minor;
+	    touch_debug(DEBUG_INFO, "[elan] %s: boot code id: 0x%4.4x\n", __func__, BOOTCODE_VERSION);
+	}
 	return 0;
 }
 
@@ -707,7 +1012,7 @@ static int elan_ktf3k_ts_setup(struct i2c_client *client)
 	int rc, count = 10;
 retry:	
         // Reset
-        elan_ktf3k_ts_hw_reset(client);
+        elan_ktf3k_ts_hw_reset(client, 250);
 	// Check if old firmware. If not, send the notmal_command to enter normal mode
        if( isOldFW(client) == 0 ){ //if check is new bootcode
            touch_debug(DEBUG_INFO, "The boot code is new!\n");
@@ -803,14 +1108,14 @@ static int elan_ktf3k_ts_get_power_state(struct i2c_client *client)
 	return power_state;
 }
 
-static int elan_ktf3k_ts_hw_reset(struct i2c_client *client)
+static int elan_ktf3k_ts_hw_reset(struct i2c_client *client, unsigned int time)
 {
       struct elan_ktf3k_ts_data *ts = i2c_get_clientdata(client);
       touch_debug(DEBUG_INFO, "[ELAN] Start HW reset!\n");
       gpio_direction_output(ts->rst_gpio, 0);
 	usleep_range(1000,1500);
 	gpio_direction_output(ts->rst_gpio, 1);
-	msleep(250);
+	if(time) msleep(time);
 	return 0;
 }
 
@@ -821,9 +1126,11 @@ static int elan_ktf3k_ts_set_power_source(struct i2c_client *client, u8 state)
 	int length = 0;
 
 	dev_dbg(&client->dev, "[elan] %s: enter\n", __func__);
-    /*0x52 0x40 0x00 0x01  =>    Battery Mode
-       0x52 0x41 0x00 0x01  =>    USB and AC Adapter Mode
-      */
+	/*
+	0x52 0x40 0x00 0x01  =>    Battery Mode
+	0x52 0x41 0x00 0x01  =>    USB and AC Adapter Mode
+	0x52 0x43 0x00 0x01  =>    SLIM Port to HDMI
+	*/
 	cmd[1] |= state & 0x0F;
 
 	dev_dbg(&client->dev,
@@ -842,11 +1149,12 @@ static int elan_ktf3k_ts_set_power_source(struct i2c_client *client, u8 state)
 	return 0;
 }
 
+/*
 static int elan_ktf3k_ts_get_power_source(struct i2c_client *client)
 {
 	int rc = 0;
 	uint8_t cmd[] = {CMD_R_PKT, 0x40, 0x00, 0x01};
-	uint8_t buf[4] = {0}, power_source;
+	uint8_t buf[4] = {0};
 
 	//rc = elan_ktf2k_ts_get_data(client, cmd, buf, 4);
 	rc = elan_ktf3k_ts_read_command(client, cmd, 4, buf, 4);
@@ -855,12 +1163,17 @@ static int elan_ktf3k_ts_get_power_source(struct i2c_client *client)
 
 	return 0;
 }
+*/
 
-static void update_power_source(){
+static void update_power_source(void){
       unsigned power_source = now_usb_cable_status;
       if(private_ts == NULL || work_lock) return;
 	// Send power state 1 if USB cable and AC charger was plugged on. 
-      elan_ktf3k_ts_set_power_source(private_ts->client, power_source != USB_NO_Cable);
+	if (power_source == SLIM_HDMI_MODE) {
+		elan_ktf3k_ts_set_power_source(private_ts->client, HDMI_POWER_SOURCE_CMD);
+	} else {
+		elan_ktf3k_ts_set_power_source(private_ts->client, power_source != USB_NO_Cable);
+	}
 }
 
 void touch_callback(unsigned cable_status){ 
@@ -893,7 +1206,7 @@ static void elan_ktf3k_ts_report_data(struct i2c_client *client, uint8_t *buf)
 {
 	struct elan_ktf3k_ts_data *ts = i2c_get_clientdata(client);
 	struct input_dev *idev = ts->input_dev;
-	uint16_t x, y, touch_size, pressure_size;
+	uint16_t x = 0, y = 0, touch_size, pressure_size;
 	uint16_t fbits=0, checksum=0;
 	uint8_t i, num;
 	static uint8_t size_index[10] = {35, 35, 36, 36, 37, 37, 38, 38, 39, 39};
@@ -923,19 +1236,21 @@ static void elan_ktf3k_ts_report_data(struct i2c_client *client, uint8_t *buf)
                       input_report_abs(idev, ABS_MT_POSITION_X, y);
                       input_report_abs(idev, ABS_MT_POSITION_Y, x);
                       if(unlikely(gPrint_point)) touch_debug(DEBUG_INFO, "[elan] finger id=%d X=%d y=%d size=%d pressure=%d\n", i, x, y, touch_size, pressure_size);
-		     }
+
+		      }
 		 }
 		 mTouchStatus[i] = active;
               fbits = fbits >> 1;
               idx += 3;
 	    }
+
           input_sync(idev);
 	} // checksum
 	else {
 		checksum_err +=1;
 		touch_debug(DEBUG_ERROR, "[elan] Checksum Error %d byte[2]=%X\n", checksum_err, buf[2]);
 	}   
-     	
+
 	return;
 }
 
@@ -964,7 +1279,7 @@ static void elan_ktf3k_ts_report_data2(struct i2c_client *client, uint8_t *buf)
                   input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, active);
                   if(active){
 		         elan_ktf3k_ts_parse_xy(&buf[idx], &x, &y);
-                      x = x > ts->abs_x_max ? 0 : ts->abs_x_max - x;
+                      	   x = x > ts->abs_x_max ? 0 : ts->abs_x_max - x;
 			   y = y > ts->abs_y_max ? ts->abs_y_max : y;
 			   touch_size = buf[35 + i];
 			   pressure_size = buf[45 + i];	 
@@ -973,12 +1288,19 @@ static void elan_ktf3k_ts_report_data2(struct i2c_client *client, uint8_t *buf)
 			   input_report_abs(idev, ABS_MT_POSITION_X, y);
 			   input_report_abs(idev, ABS_MT_POSITION_Y, x);
 			   if(unlikely(gPrint_point)) touch_debug(DEBUG_INFO, "[elan] finger id=%d X=%d y=%d size=%d pressure=%d\n", i, x, y, touch_size, pressure_size);
-		     }
-		 }
+
+/* sweep2wake */
+			   if (s2w_switch > 0)
+				  sweep2wake_func(x, y, jiffies, i);
+			   if (dt2w_switch && scr_suspended)	
+				  doubletap2wake_func(x, y);
+/* end sweep2wake */
+		  }
+	      }
 		 mTouchStatus[i] = active;
               fbits = fbits >> 1;
               idx += 3;
-	    }
+	  }
           input_sync(idev);
 	} // checksum
 	else {
@@ -1118,7 +1440,7 @@ static irqreturn_t elan_ktf3k_ts_irq_handler(int irq, void *dev_id)
 {
 	struct elan_ktf3k_ts_data *ts = dev_id;
 	struct i2c_client *client = ts->client;
-
+	
 	dev_dbg(&client->dev, "[elan] %s\n", __func__);
 	disable_irq_nosync(ts->client->irq);
 	queue_work(ts->elan_wq, &ts->work);
@@ -1216,6 +1538,7 @@ static int ektf_proc_write(struct file *file, const char *buffer, unsigned long 
 }
 #endif // #ifdef _ENABLE_DBG_LEV
 
+
 #ifdef FIRMWARE_UPDATE_WITH_HEADER
 #define FIRMWARE_PAGE_SIZE 132
 static unsigned char touch_firmware[] = {
@@ -1225,21 +1548,25 @@ static unsigned char touch_firmware[] = {
 #define SIZE_PER_PACKET 4
 
 static int sendI2CPacket(struct i2c_client *client, const unsigned char *buf, unsigned int length){
-     int ret, i, retry_times = 10;
+     int ret, i;
+     int retry_times = 10;
      for(i = 0; i < length; i += ret){
             ret  = i2c_master_send(client, buf + i,  length < SIZE_PER_PACKET ? length : SIZE_PER_PACKET);
-            if(ret <= 0){
+	    
+	    if(ret <= 0){
 	          retry_times--;
 		    ret = 0;
-	      }  
+	      }
 	     if(ret < (length < SIZE_PER_PACKET ? length : SIZE_PER_PACKET)){
-	          touch_debug("Sending packet broken\n");
+	          touch_debug(DEBUG_INFO,"Sending packet broken\n");
+		    //printk("[ektf3k]:Sending packet broken\n");	  
 	     } 
-		 	
 	     if(retry_times < 0){
-	          touch_debug("Failed sending I2C touch firmware packet.\n");
+	          touch_debug(DEBUG_INFO,"Failed sending I2C touch firmware packet.\n");
+		   //printk("[ektf3k]:Failed sending I2C touch firmware packet.\n");	  
 	          break;
 	     }
+	   
      }
 
      return i;
@@ -1255,7 +1582,8 @@ static int recvI2CPacket(struct i2c_client *client, unsigned char *buf, unsigned
 	      }  
 				
 	     if(retry_times < 0){
-	          touch_debug("Failed sending I2C touch firmware packet.\n");
+	          touch_debug(DEBUG_INFO,"Failed sending I2C touch firmware packet.\n");
+	          //printk("[ektf3k]:Failed sending I2C touch firmware packet.\n");
 	          break;
 	     }
      }
@@ -1264,14 +1592,15 @@ static int recvI2CPacket(struct i2c_client *client, unsigned char *buf, unsigned
 }
 
 
-static int firmware_update_header(struct i2c_client *client, const unsigned char *firmware, unsigned int pages_number){
-    int ret, i, mode;
-    int retry_times = 3, write_times; 
+static int firmware_update_header(struct i2c_client *client, unsigned char *firmware, unsigned int pages_number){
+
+    int ret, i;
+    int sendCount;
+    int recvCount;
+    int write_times; 
     unsigned char packet_data[8] = {0};
-    unsigned char isp_cmd[4] = {0x54, 0x00, 0x12, 0x34};
     unsigned char nb_isp_cmd[4] = {0x45, 0x49, 0x41, 0x50};
     unsigned char *cursor; 
-    int boot_code = 0;
     struct elan_ktf3k_ts_data *ts = i2c_get_clientdata(client);
 	
     if(ts == NULL) 
@@ -1281,27 +1610,13 @@ static int firmware_update_header(struct i2c_client *client, const unsigned char
     disable_irq(client->irq);  // Blocking call no need to do extra wait
     wake_lock(&ts->wakelock);
     work_lock = 1;
-    elan_ktf3k_ts_hw_reset(client);
-    // Step 1: Check boot code version
-    boot_code = gpio_get_value(ts->intr_gpio);
-    if(boot_code == 0){ // if the boot code is old
-        touch_debug(DEBUG_INFO, "The firmware update of old boot code\n");
-        if(recvI2CPacket(client, packet_data, 4) < 0) 
-	      goto fw_update_failed;
+	/*add delay for waiting bootcode initial*/
+	elan_ktf3k_ts_hw_reset(client, 20);
+	touch_debug(DEBUG_INFO, "Send command into IAP mode\n");
+	/*get into IAP mode*/
+	if (sendI2CPacket(client, nb_isp_cmd, sizeof(nb_isp_cmd)) < 0)
+		goto fw_update_failed;
 
-	  touch_debug(DEBUG_INFO, "The received bytes 0x%X 0x%X 0x%X 0x%X\n", packet_data[0], packet_data[1], 
-	  	           packet_data[2], packet_data[3]);
-        if(packet_data[0] == 0x55 && packet_data[1] == 0x55 && packet_data[2] == 0x80 && packet_data[3] == 0x80)
-	      touch_debug(DEBUG_INFO, "In the recovery mode\n");
-
-        if(sendI2CPacket(client, isp_cmd, sizeof(isp_cmd)) < 0) // get into ISP mode
-	      goto fw_update_failed;	  
-    }else{ // if the boot code is new
-        touch_debug(DEBUG_INFO, "The firmware update of new boot code\n");
-        if(sendI2CPacket(client, nb_isp_cmd, sizeof(nb_isp_cmd)) < 0) // get into ISP mode
-	      goto fw_update_failed;
-    }
-	
     msleep(100);
     packet_data[0] = 0x10; 
     if(sendI2CPacket(client, packet_data, 1) < 0) // send dummy byte
@@ -1314,14 +1629,14 @@ static int firmware_update_header(struct i2c_client *client, const unsigned char
 page_write_retry:
 	  touch_debug(DEBUG_MESSAGES, "Update page number %d\n", i);
 
-          int sendCount;
+          
           if((sendCount = sendI2CPacket(client, cursor, FIRMWARE_PAGE_SIZE)) != FIRMWARE_PAGE_SIZE){
 	      dev_err(&client->dev, "Fail to Update page number %d\n", i);
 		goto fw_update_failed;
 	  }
           touch_debug(DEBUG_INFO, "sendI2CPacket send %d bytes\n", sendCount);
 
-          int recvCount;
+         msleep(25);
           if((recvCount = recvI2CPacket(client, packet_data, FIRMWARE_ACK_SIZE)) != FIRMWARE_ACK_SIZE){
 	      dev_err(&client->dev, "Fail to Update page number %d\n", i);
 	      goto fw_update_failed;
@@ -1329,6 +1644,7 @@ page_write_retry:
 
           touch_debug(DEBUG_INFO, "recvI2CPacket recv %d bytes: %x %x\n", recvCount, packet_data[0], packet_data[1]);
 
+	
 	  if(packet_data[0] != 0xaa || packet_data[1] != 0xaa){
 	      touch_debug(DEBUG_INFO, "message received: %02X %02X Page %d rewrite\n", packet_data[0], packet_data[1], i);
 		if(write_times++ > 3)
@@ -1336,22 +1652,27 @@ page_write_retry:
 			
 		goto page_write_retry;
 	  }
+	  
 		  
 	  cursor += FIRMWARE_PAGE_SIZE;
     }
 	
-    elan_ktf3k_ts_hw_reset(client);
-    if(boot_code)
-        msleep(2000);
-    else		
-        msleep(300);
-    if(recvI2CPacket(client, packet_data, 4) < 0) 
-	      goto fw_update_failed;	
-    __fw_packet_handler(ts->client, 1);
+    elan_ktf3k_ts_hw_reset(client, 0);
+
+    /*check irq*/
+    wait_for_IRQ_Low(client, 500000);/*500ms * 10*/
+
+    if (recvI2CPacket(client, packet_data, 4) < 0)
+		goto fw_update_failed;
+    /*add debug message for hello packet*/
+   touch_debug(DEBUG_INFO, "[elan] %s: hello packet %2x:%2X:%2x:%2x\n", __func__, packet_data[0], packet_data[1], packet_data[2], packet_data[3]);
+
+   __fw_packet_handler(ts->client, 1);
     ret = 0;
     goto fw_update_finish;
 fw_update_failed:
     ret = -1;
+    touch_debug(DEBUG_INFO, "Failed the touch firmware update!\n");	
 fw_update_finish:  
     work_lock = 0;
     wake_unlock(&ts->wakelock);
@@ -1397,11 +1718,11 @@ int elan_stress_release(struct inode *inode, struct file *filp)
 	return 0;          /* success */
 }
 
-int elan_stress_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+long elan_stress_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int err = 1;
 
-	printk("%s\n", __func__, cmd);
+	printk("[elan_stress_ioctl]%d\n", cmd);
 	if (_IOC_TYPE(cmd) != STRESS_IOC_MAGIC)
 	return -ENOTTY;
 	if (_IOC_NR(cmd) > STRESS_IOC_MAXNR)
@@ -1519,7 +1840,7 @@ static int elan_ktf3k_ts_probe(struct i2c_client *client,
 	__set_bit(EV_ABS, ts->input_dev->evbit);
 	__set_bit(EV_SYN, ts->input_dev->evbit);
 	__set_bit(EV_KEY, ts->input_dev->evbit);
-	
+	__set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
 
 	err = input_register_device(ts->input_dev);
 	if (err) {
@@ -1535,9 +1856,10 @@ static int elan_ktf3k_ts_probe(struct i2c_client *client,
 		touch_debug(DEBUG_INFO, "[elan]%s: handle missed interrupt\n", __func__);
 		elan_ktf3k_ts_irq_handler(client->irq, ts);
 	}
+
 	
 #ifdef FIRMWARE_UPDATE_WITH_HEADER	
-      if(RECOVERY || check_fw_version(touch_firmware, sizeof(touch_firmware), ts->fw_ver) > 0)
+      if (RECOVERY || check_fw_version(touch_firmware, sizeof(touch_firmware), ts->fw_ver) > 0)
           firmware_update_header(client, touch_firmware, sizeof(touch_firmware)/FIRMWARE_PAGE_SIZE);
 #endif
 
@@ -1550,7 +1872,7 @@ static int elan_ktf3k_ts_probe(struct i2c_client *client,
 
 	private_ts = ts;
 
-	//elan_ktf2k_touch_sysfs_init();
+	elan_ktf3k_touch_sysfs_init();
       ts->attrs.attrs = elan_attr;
 	err = sysfs_create_group(&client->dev.kobj, &ts->attrs);
 	if (err) {
@@ -1617,9 +1939,9 @@ err_input_register_device_failed:
 		input_free_device(ts->input_dev);
 
 err_input_dev_alloc_failed:
-err_detect_failed:
-	if (ts->elan_wq)
-		destroy_workqueue(ts->elan_wq);
+//err_detect_failed:
+//	if (ts->elan_wq)
+//		destroy_workqueue(ts->elan_wq);
 
 err_create_wq_failed:
 	kfree(ts);
@@ -1673,14 +1995,24 @@ static int elan_ktf3k_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	int rc = 0;
 
 	touch_debug(DEBUG_INFO, "[elan] %s: enter\n", __func__);
-	disable_irq(client->irq);
+
+/*s2w*/
+	if (s2w_switch == 1 || dt2w_switch == 1) {
+		enable_irq_wake(client->irq);
+	} else {
+		disable_irq(client->irq);
+	}	
+	
 	force_release_pos(client);
 	rc = cancel_work_sync(&ts->work);
 	if (rc)
 		enable_irq(client->irq);
 
-	if(work_lock == 0)
+/*s2w*/
+	if((s2w_switch != 1 && !dt2w_switch) && work_lock == 0)
 	    rc = elan_ktf3k_ts_set_power_state(client, PWR_STATE_DEEP_SLEEP);
+/*s2w*/
+	scr_suspended = true;
 
 	return 0;
 }
@@ -1689,8 +2021,11 @@ static int elan_ktf3k_ts_resume(struct i2c_client *client)
 {
 
 	int rc = 0, retry = 5;
-      struct elan_ktf3k_ts_data *ts = i2c_get_clientdata(client);
-      int delay_time;
+      //struct elan_ktf3k_ts_data *ts = i2c_get_clientdata(client);
+      //int delay_time;
+
+	//gpio_direction_output(31, 0);
+	  
 	touch_debug(DEBUG_INFO, "[elan] %s: enter\n", __func__);
 	if(work_lock == 0){
 	    do {
@@ -1704,7 +2039,22 @@ static int elan_ktf3k_ts_resume(struct i2c_client *client)
 	    } while (--retry);
 	}
 	//force_release_pos(client);
-      enable_irq(client->irq);	
+
+/* s2w */
+	if (s2w_switch == 1 || dt2w_switch == 1) {
+		disable_irq_wake(client->irq);
+	} else {
+		enable_irq(client->irq);	
+	}
+
+	if (s2w_changed)
+		s2w_switch = s2w_switch_temp;
+	if (dt2w_changed)
+		dt2w_switch = dt2w_switch_temp;
+
+	scr_suspended = false;
+/* end s2w */
+
 	return 0;
 }
 
@@ -1759,3 +2109,4 @@ module_exit(elan_ktf3k_ts_exit);
 
 MODULE_DESCRIPTION("ELAN KTF3K Touchscreen Driver");
 MODULE_LICENSE("GPL");
+
