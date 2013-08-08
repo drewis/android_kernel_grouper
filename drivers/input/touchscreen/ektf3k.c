@@ -213,17 +213,29 @@ int s2w_switch = 1;
 int s2w_switch_temp = 1;
 int s2w_changed = 0;
 bool scr_suspended = false;
-int tripon = 0;
-int tripoff = 0;
-unsigned long triptime = 0;
+int tripoff_vl = 0;
+int tripoff_vr = 0;
+int tripoff_hd = 0;
+int tripoff_hu = 0;
+int tripon_vl = 0;
+int tripon_vr = 0;
+int tripon_hd = 0;
+int tripon_hu = 0;
+unsigned long triptime_vl = 0;
+unsigned long triptime_vr = 0;
+unsigned long triptime_hd = 0;
+unsigned long triptime_hu = 0;
 unsigned long dt2w_time[2] = {0, 0};
 unsigned int dt2w_x[2] = {0, 0};
 unsigned int dt2w_y[2] = {0, 0};
+unsigned int dt2w_2_x[2] = {0, 0};
+unsigned int dt2w_2_y[2] = {0, 0};
 int status[2] = {0,0};
 int dt2w_count = 0;
-#define S2W_TIMEOUT 75
+int is_suspended = 0;
+#define S2W_TIMEOUT 50
 #define DT2W_TIMEOUT_MAX 40
-#define DT2W_TIMEOUT_MIN 8
+#define DT2W_TIMEOUT_MIN 9
 #define DT2W_DELTA 60
 
 void sweep2wake_setdev(struct input_dev * input_device) {
@@ -237,9 +249,18 @@ static void reset_sweep2wake(int s2w, int dt2w)
 {
 	//reset sweep2wake
 	if (s2w) {
-		tripoff = 0;
-		tripon = 0;
-		triptime = 0;
+		tripoff_vl = 0;
+		tripoff_vr = 0;
+		tripoff_hd = 0;
+		tripoff_hu = 0;
+		tripon_vl = 0;
+		tripon_vr = 0;
+		tripon_hd = 0;
+		tripon_hu = 0;
+		triptime_vl = 0;
+		triptime_vr = 0;
+		triptime_hd = 0;
+		triptime_hu = 0;
 	}
 
 	//reset doubletap2wake
@@ -250,7 +271,10 @@ static void reset_sweep2wake(int s2w, int dt2w)
 		dt2w_time[1] = 0;
 		dt2w_x[1] = 0;
 		dt2w_y[1] = 0;
-		dt2w_count = 0;
+		dt2w_2_x[0] = 0;
+		dt2w_2_x[1] = 0;
+		dt2w_2_y[0] = 0;
+		dt2w_2_y[1] = 0;
 	}
 
 	return;
@@ -277,7 +301,7 @@ void sweep2wake_pwrtrigger(void)
 		schedule_work(&sweep2wake_presspwr_work);
 }
 
-int sweep2wake_touch_check(int i)
+/*int sweep2wake_touch_check(int i)
 {
 	status[1] = status[0];
 	status[0] = mTouchStatus[i];
@@ -287,47 +311,121 @@ int sweep2wake_touch_check(int i)
 	} else {
 		return 1;
 	}
-}
+}*/
 
-void sweep2wake_func(int x, int y, unsigned long time, int i)
+void sweep2wake_func(int x, int y, unsigned long time)
 {
-	int sametouch = sweep2wake_touch_check(i);
+	//int sametouch = sweep2wake_touch_check(i);
 
 	//printk("[sweep2wake]: x,y(%d,%d) jiffies:%lu\n", x, y, time);
 
-	if (!sametouch){
+	//if (!sametouch){
+	if (x < 0){
 		reset_sweep2wake(1,0);
 		return;
 	}
 
-	//left->right
 	if (scr_suspended == true && s2w_switch == 1) {
+		//left->right
 		if (y < 100) {
-			tripon = 1;
-			triptime = time;
-		} else if (tripon == 1 && y > 488  && time - triptime < 25) {
-			tripon = 2;
-		} else if (tripon == 2 && y > 896 && time - triptime < 50) {
-			tripon = 3;
-		} else if (tripon == 3 && y > 1150 && time - triptime < S2W_TIMEOUT) {
+			tripon_vr = 1;
+			triptime_vr = time;
+		} else if (tripon_vr == 1 && y > 488  && time - triptime_vr < 20) {
+			tripon_vr = 2;
+		} else if (tripon_vr == 2 && y > 896 && time - triptime_vr < 40) {
+			tripon_vr = 3;
+		} else if (tripon_vr == 3 && (y > 1250) && time - triptime_vr < S2W_TIMEOUT) {
 			printk(KERN_INFO "[sweep2wake]: ON");
 			sweep2wake_pwrtrigger();
-		} 			
-	//right->left
-	} else if (scr_suspended == false && s2w_switch > 0 && x > 2000) {
-		if (y > 1250) {
-			tripoff = 1;
-			triptime = time;
-		} else if (tripoff == 1 && y < 896  && time - triptime < 25) {
-			tripoff = 2;
-		} else if (tripoff == 2 && y < 488 && time - triptime < 50) {
-			tripoff = 3;
-		} else if (tripoff == 3 && y < 100 && (time - triptime < S2W_TIMEOUT)) {
+		} 
+		//right->left
+		if (y > 1240) {
+			tripon_vl = 1;
+			triptime_vl = time;
+		} else if (tripon_vl == 1 && y < 896  && time - triptime_vl < 20) {
+			tripon_vl = 2;
+		} else if (tripon_vl == 2 && y < 488 && time - triptime_vl < 40) {
+			tripon_vl = 3;
+		} else if (tripon_vl == 3 && y < 100 && (time - triptime_vl < S2W_TIMEOUT)) {
+			printk(KERN_INFO "[sweep2wake]: ON");
+			sweep2wake_pwrtrigger();
+		}
+		//top->bottom
+		if (x < 250) {
+			tripon_hd = 1;
+			triptime_hd = time;
+		} else if (tripon_hd == 1 && x > 748  && time - triptime_hd < 25) {
+			tripon_hd = 2;
+		} else if (tripon_hd == 2 && x > 1496 && time - triptime_hd < 45) {
+			tripon_hd = 3;
+		} else if (tripon_hd == 3 && x > 2000 && (time - triptime_hd < S2W_TIMEOUT)) {
+			printk(KERN_INFO "[sweep2wake]: ON");
+			sweep2wake_pwrtrigger();
+		} 
+		//bottom->top
+		if (x > 2000) {
+			tripon_hu = 1;
+			triptime_hu = time;
+		} else if (tripon_hu == 1 && x < 1496  && time - triptime_hu < 25) {
+			tripon_hu = 2;
+		} else if (tripon_hu == 2 && x < 748 && time - triptime_hu < 45) {
+			tripon_hu = 3;
+		} else if (tripon_hu == 3 && x < 250 && (time - triptime_hu < S2W_TIMEOUT)) {
+			printk(KERN_INFO "[sweep2wake]: ON");
+			sweep2wake_pwrtrigger();
+		} 
+	}
+	
+	if (scr_suspended == false && s2w_switch > 0) {
+		//right->left portrait mode normal
+		if (y > 1250 && x > 2140) {
+			tripoff_vl = 1;
+			triptime_vl = time;
+		} else if (tripoff_vl == 1 && y < 896  && time - triptime_vl < 20) {
+			tripoff_vl = 2;
+		} else if (tripoff_vl == 2 && y < 488 && time - triptime_vl < 40) {
+			tripoff_vl = 3;
+		} else if (tripoff_vl == 3 && y < 200 && (time - triptime_vl < S2W_TIMEOUT)) {
+			printk(KERN_INFO "[sweep2wake]: OFF");
+			sweep2wake_pwrtrigger();
+		} 
+		//left->right portrait mode upside down
+		if (y < 100 && x < 100) {
+			tripoff_vr = 1;
+			triptime_vr = time;
+		} else if (tripoff_vr == 1 && y > 488  && time - triptime_vr < 20) {
+			tripoff_vr = 2;
+		} else if (tripoff_vr == 2 && y > 896 && time - triptime_vr < 40) {
+			tripoff_vr = 3;
+		} else if (tripoff_vr == 3 && y > 1150 && time - triptime_vr < S2W_TIMEOUT) {
+			printk(KERN_INFO "[sweep2wake]: OFF");
+			sweep2wake_pwrtrigger();
+		} 		
+		//top->bottom
+		if (x < 250 && y > 1244) {
+			tripoff_hd = 1;
+			triptime_hd = time;
+		} else if (tripoff_hd == 1 && x > 748  && time - triptime_hd < 25) {
+			tripoff_hd = 2;
+		} else if (tripoff_hd == 2 && x > 1496 && time - triptime_hd < 45) {
+			tripoff_hd = 3;
+		} else if (tripoff_hd == 3 && x > 2050 && (time - triptime_hd < S2W_TIMEOUT)) {
+			printk(KERN_INFO "[sweep2wake]: OFF");
+			sweep2wake_pwrtrigger();
+		} 
+		//bottom->top
+		if (x > 2000 && y < 100) {
+			tripoff_hu = 1;
+			triptime_hu = time;
+		} else if (tripoff_hu == 1 && x < 1496  && time - triptime_hu < 25) {
+			tripoff_hu = 2;
+		} else if (tripoff_hu == 2 && x < 748 && time - triptime_hu < 45) {
+			tripoff_hu = 3;
+		} else if (tripoff_hu == 3 && x < 200 && (time - triptime_hu < S2W_TIMEOUT)) {
 			printk(KERN_INFO "[sweep2wake]: OFF");
 			sweep2wake_pwrtrigger();
 		} 
 	}
-
 }
 
 void doubletap2wake_func(int x, int y)
@@ -336,48 +434,39 @@ void doubletap2wake_func(int x, int y)
 	int delta_x = 0;
 	int delta_y = 0;
 
-	dt2w_count++;
-
-	//printk("dt2w: time=%lu\n", jiffies);
-
-        dt2w_time[1] = dt2w_time[0];
-        dt2w_time[0] = jiffies;
-
-	if ((dt2w_time[0] - dt2w_time[1]) > 45) {
-		dt2w_count = 0;
-		//printk("dt2w: reset dt2w_count\n");
-	}
-
-	if ((dt2w_time[0] - dt2w_time[1]) < 8 || dt2w_count > 1) {
-		//printk("dt2w: too fast, dt2w_count=%d\n", dt2w_count);
-		return;
-	} else {
-		dt2w_count = 0;
-	}
+	printk("x=%d y=%d\n", x, y);
 
 	dt2w_x[1] = dt2w_x[0];
-       	dt2w_x[0] = x;
+	dt2w_x[0] = x;
 	dt2w_y[1] = dt2w_y[0];
-       	dt2w_y[0] = y;
+	dt2w_y[0] = y;
 
-	delta_x = (dt2w_x[0]-dt2w_x[1]);
-	delta_y = (dt2w_y[0]-dt2w_y[1]);
+	if (x < 0) {
+		dt2w_2_x[1] = dt2w_2_x[0];
+		dt2w_2_x[0] = dt2w_x[1];
+		dt2w_2_y[1] = dt2w_2_y[0];
+		dt2w_2_y[0] = dt2w_y[1];
+		dt2w_time[1] = dt2w_time[0];
+		dt2w_time[0] = jiffies;
+		
+		printk("x0=%d x1=%d time0=%lu time1=%lu\n", dt2w_2_x[0], dt2w_2_x[1], dt2w_time[0], dt2w_time[1]);
 
-	if ((abs(delta_x) < DT2W_DELTA) && (abs(delta_y) < DT2W_DELTA)) {
+		delta_x = (dt2w_2_x[0]-dt2w_2_x[1]);
+		delta_y = (dt2w_2_y[0]-dt2w_2_y[1]);
 
-		if (y > 50 && y < 1300
-			 && ((dt2w_time[0] - dt2w_time[1]) > DT2W_TIMEOUT_MIN)
-			 && ((dt2w_time[0] - dt2w_time[1]) < DT2W_TIMEOUT_MAX)) {
+		if ((abs(delta_x) < DT2W_DELTA) && (abs(delta_y) < DT2W_DELTA)) {
+			if ( ((dt2w_time[0] - dt2w_time[1]) > DT2W_TIMEOUT_MIN)
+					 && ((dt2w_time[0] - dt2w_time[1]) < DT2W_TIMEOUT_MAX)) {
 
-                        //printk("[dt2w]: OFF->ON\n");
-                        sweep2wake_pwrtrigger();
+	                        printk("[dt2w]: OFF->ON\n");
+	                        sweep2wake_pwrtrigger();
 
+			} else {
+				printk("dt2w: wrong time\n");
+			}
 		} else {
-			//printk("dt2w: wrong time\n");
+			printk("dt2w: wrong spot\n");
 		}
-
-	} else {
-		//printk("dt2w: wrong spot\n");
 	}
 
         return;
@@ -1264,49 +1353,68 @@ static void elan_ktf3k_ts_report_data2(struct i2c_client *client, uint8_t *buf)
 	uint16_t active = 0; 
 	uint8_t idx=IDX_FINGER;
 
-      num = buf[2] & 0xf;
+	printk("buffer=%d\n", *buf);
+
+	num = buf[2] & 0xf;
 	for (i=0; i<34;i++)
 		checksum +=buf[i];
-	
-	if ( (num < 3) || ((checksum & 0x00ff) == buf[34])) {   
-          fbits = buf[2] & 0x30;	
-	    fbits = (fbits << 4) | buf[1]; 
-	    //input_report_key(idev, BTN_TOUCH, 1);
-          for(i = 0; i < FINGER_NUM; i++){
-              active = fbits & 0x1;
-              if(active || mTouchStatus[i]){
-		     input_mt_slot(ts->input_dev, i);
-                  input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, active);
-                  if(active){
-		         elan_ktf3k_ts_parse_xy(&buf[idx], &x, &y);
-                      	   x = x > ts->abs_x_max ? 0 : ts->abs_x_max - x;
-			   y = y > ts->abs_y_max ? ts->abs_y_max : y;
-			   touch_size = buf[35 + i];
-			   pressure_size = buf[45 + i];	 
-			   input_report_abs(idev, ABS_MT_TOUCH_MAJOR, touch_size);
-			   input_report_abs(idev, ABS_MT_PRESSURE, pressure_size);
-			   input_report_abs(idev, ABS_MT_POSITION_X, y);
-			   input_report_abs(idev, ABS_MT_POSITION_Y, x);
-			   if(unlikely(gPrint_point)) touch_debug(DEBUG_INFO, "[elan] finger id=%d X=%d y=%d size=%d pressure=%d\n", i, x, y, touch_size, pressure_size);
 
-/* sweep2wake */
-			   if (s2w_switch > 0)
-				  sweep2wake_func(x, y, jiffies, i);
-			   if (dt2w_switch && scr_suspended)	
-				  doubletap2wake_func(x, y);
-/* end sweep2wake */
-		  }
-	      }
-		 mTouchStatus[i] = active;
-              fbits = fbits >> 1;
-              idx += 3;
-	  }
-          input_sync(idev);
+	printk("num=%d\n", num);
+	printk("checksum=%d\n", checksum);
+
+	if ( (num < 3) || ((checksum & 0x00ff) == buf[34])) {   
+		fbits = buf[2] & 0x30;	
+		fbits = (fbits << 4) | buf[1]; 
+
+	printk("fbits=%d\n", fbits);
+
+		//input_report_key(idev, BTN_TOUCH, 1);
+
+		for(i = 0; i < FINGER_NUM; i++){
+			active = fbits & 0x1;
+			if(active || mTouchStatus[i]){
+				input_mt_slot(ts->input_dev, i);
+				input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, active);
+				if(active){
+					elan_ktf3k_ts_parse_xy(&buf[idx], &x, &y);
+					x = x > ts->abs_x_max ? 0 : ts->abs_x_max - x;
+					y = y > ts->abs_y_max ? ts->abs_y_max : y;
+					touch_size = buf[35 + i];
+					pressure_size = buf[45 + i];	 
+					input_report_abs(idev, ABS_MT_TOUCH_MAJOR, touch_size);
+					input_report_abs(idev, ABS_MT_PRESSURE, pressure_size);
+					input_report_abs(idev, ABS_MT_POSITION_X, y);
+					input_report_abs(idev, ABS_MT_POSITION_Y, x);
+					if(unlikely(gPrint_point))
+						touch_debug(DEBUG_INFO, "[elan] finger id=%d X=%d y=%d size=%d pressure=%d\n", i, x, y, touch_size, pressure_size);
+					/* sweep2wake */
+					if (s2w_switch > 0)
+						sweep2wake_func(x, y, jiffies);
+					if (dt2w_switch && scr_suspended)	
+						doubletap2wake_func(x, y);
+					/* end sweep2wake */
+				}
+			}
+			mTouchStatus[i] = active;
+			fbits = fbits >> 1;
+			idx += 3;
+		}
+		input_sync(idev);
 	} // checksum
+
 	else {
 		checksum_err +=1;
 		touch_debug(DEBUG_ERROR, "[elan] Checksum Error %d byte[2]=%X\n", checksum_err, buf[2]);
 	} 
+
+	/* sweep2wake */
+	if (checksum == 99) {
+		if (s2w_switch > 0)
+			sweep2wake_func(-1, -1, jiffies);
+		if (dt2w_switch && scr_suspended)	
+			doubletap2wake_func(-1, -1);
+	}
+	/* end sweep2wake */
 
 	return;
 }
@@ -2063,6 +2171,7 @@ static void elan_ktf3k_ts_early_suspend(struct early_suspend *h)
 {
 	struct elan_ktf3k_ts_data *ts;
 	ts = container_of(h, struct elan_ktf3k_ts_data, early_suspend);
+	is_suspended = 1;
 	elan_ktf3k_ts_suspend(ts->client, PMSG_SUSPEND);
 }
 
@@ -2070,6 +2179,7 @@ static void elan_ktf3k_ts_late_resume(struct early_suspend *h)
 {
 	struct elan_ktf3k_ts_data *ts;
 	ts = container_of(h, struct elan_ktf3k_ts_data, early_suspend);
+	is_suspended = 0;
 	elan_ktf3k_ts_resume(ts->client);
 }
 #endif
