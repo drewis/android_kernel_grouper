@@ -216,7 +216,7 @@ int s2w_begin_v = 150;
 int s2w_end_v = 1200;
 int s2w_begin_h = 350;
 int s2w_end_h = 1900;
-int shortsweep = 0;
+int shortsweep = 1;
 bool scr_suspended = false;
 int tripoff_vl = 0;
 int tripoff_vr = 0;
@@ -367,9 +367,9 @@ void sweep2wake_func(int x, int y, unsigned long time, int i)
 		if (y > s2w_end_v && x > 2140) {
 			tripoff_vl = 1;
 			triptime_vl = time;
-		} else if (tripoff_vl == 1 && y < 896  && time - triptime_vl < 20) {
+		} else if (tripoff_vl == 1 && y < 488  && time - triptime_vl < 20) {
 			tripoff_vl = 2;
-		} else if (tripoff_vl == 2 && y < 488 && time - triptime_vl < 40) {
+		} else if (tripoff_vl == 2 && y < 896 && time - triptime_vl < 40) {
 			tripoff_vl = 3;
 		} else if (tripoff_vl == 3 && y < (s2w_begin_v) && (time - triptime_vl < S2W_TIMEOUT)) {
 			printk(KERN_INFO "[s2w]: OFF");
@@ -379,9 +379,9 @@ void sweep2wake_func(int x, int y, unsigned long time, int i)
 		if (y < s2w_begin_v && x < 100) {
 			tripoff_vr = 1;
 			triptime_vr = time;
-		} else if (tripoff_vr == 1 && y > 488  && time - triptime_vr < 20) {
+		} else if (tripoff_vr == 1 && y > 896  && time - triptime_vr < 20) {
 			tripoff_vr = 2;
-		} else if (tripoff_vr == 2 && y > 896 && time - triptime_vr < 40) {
+		} else if (tripoff_vr == 2 && y > 488 && time - triptime_vr < 40) {
 			tripoff_vr = 3;
 		} else if (tripoff_vr == 3 && y > s2w_end_v && time - triptime_vr < S2W_TIMEOUT) {
 			printk(KERN_INFO "[s2w]: OFF");
