@@ -236,7 +236,7 @@ unsigned int dt2w_y[2] = {0, 0};
 unsigned int dt2w_2_x[2] = {0, 0};
 unsigned int dt2w_2_y[2] = {0, 0};
 //int is_suspended = 0;
-#define S2W_TIMEOUT 50
+#define S2W_TIMEOUT 30
 #define DT2W_TIMEOUT_MAX 50
 #define DT2W_TIMEOUT_MIN 4
 #define DT2W_DELTA 150
@@ -356,7 +356,7 @@ void sweep2wake_func(int x, int y, unsigned long time, int i)
 			tripon_hu = 2;
 		} else if (tripon_hu == 2 && x < 748 && time - triptime_hu < 45) {
 			tripon_hu = 3;
-		} else if (tripon_hu == 3 && x < s2w_begin_h && (time - triptime_hu < S2W_TIMEOUT)) {
+		} else if (tripon_hu == 3 && x < (s2w_begin_h) && (time - triptime_hu < S2W_TIMEOUT)) {
 			printk(KERN_INFO "[s2w]: ON");
 			sweep2wake_pwrtrigger();
 		} 
@@ -364,29 +364,29 @@ void sweep2wake_func(int x, int y, unsigned long time, int i)
 	
 	if (scr_suspended == false && s2w_switch > 0) {
 		//right->left portrait mode normal
-		if (y > s2w_end_v && x > 2140) {
+		if (y > s2w_end_v && x > 1848 ) {
 			tripoff_vl = 1;
 			triptime_vl = time;
-		} else if (tripoff_vl == 1 && y < 488  && time - triptime_vl < 20) {
+		} else if (tripoff_vl == 1 && y < 854  && time - triptime_vl < 20) {
 			tripoff_vl = 2;
-		} else if (tripoff_vl == 2 && y < 896 && time - triptime_vl < 40) {
+		} else if (tripoff_vl == 2 && y < 427 && time - triptime_vl < 40) {
 			tripoff_vl = 3;
 		} else if (tripoff_vl == 3 && y < (s2w_begin_v) && (time - triptime_vl < S2W_TIMEOUT)) {
 			printk(KERN_INFO "[s2w]: OFF");
 			sweep2wake_pwrtrigger();
 		} 
 		//left->right portrait mode upside down
-		if (y < s2w_begin_v && x < 100) {
-			tripoff_vr = 1;
-			triptime_vr = time;
-		} else if (tripoff_vr == 1 && y > 896  && time - triptime_vr < 20) {
-			tripoff_vr = 2;
-		} else if (tripoff_vr == 2 && y > 488 && time - triptime_vr < 40) {
-			tripoff_vr = 3;
-		} else if (tripoff_vr == 3 && y > s2w_end_v && time - triptime_vr < S2W_TIMEOUT) {
-			printk(KERN_INFO "[s2w]: OFF");
-			sweep2wake_pwrtrigger();
-		} 		
+		//if (y < 100 && x > 100) {
+		//	tripoff_vr = 1;
+		//	triptime_vr = time;
+		//} else if (tripoff_vr == 1 && y > 427  && time - triptime_vr < 20) {
+		//	tripoff_vr = 2;
+		//} else if (tripoff_vr == 2 && y > 854 && time - triptime_vr < 40) {
+		//	tripoff_vr = 3;
+		//} else if (tripoff_vr == 3 && y > (s2w_end_v) && (time - triptime_vr < S2W_TIMEOUT)) {
+		//	printk(KERN_INFO "[s2w]: OFF");
+		//	sweep2wake_pwrtrigger();
+		//} 		
 		//top->bottom
 		if (x < s2w_begin_h && y > 1244) {
 			tripoff_hd = 1;
