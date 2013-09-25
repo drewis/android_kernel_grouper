@@ -40,11 +40,11 @@
 #include <mach/board-grouper-misc.h>
 
 #include <linux/module.h>
-static bool otf_scaling = 1;
+static bool otf_scaling = 0;
 module_param(otf_scaling, bool, 0644);
 static unsigned int min_backlight = 10;
 module_param(min_backlight, uint, 0644);
-static unsigned int max_backlight = 160;
+static unsigned int max_backlight = 255;
 module_param(max_backlight, uint, 0644);
 
 /* grouper default display board pins */
