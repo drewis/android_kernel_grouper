@@ -216,7 +216,7 @@ int s2w_begin_v = 150;
 int s2w_end_v = 1200;
 int s2w_begin_h = 350;
 int s2w_end_h = 1900;
-int shortsweep = 1;
+int shortsweep = 0;
 bool scr_suspended = false;
 int tripoff_vl = 0;
 int tripoff_vr = 0;
@@ -236,10 +236,14 @@ unsigned int dt2w_y[2] = {0, 0};
 unsigned int dt2w_2_x[2] = {0, 0};
 unsigned int dt2w_2_y[2] = {0, 0};
 //int is_suspended = 0;
-#define S2W_TIMEOUT 30
+#define S2W_TIMEOUT 50
 #define DT2W_TIMEOUT_MAX 50
 #define DT2W_TIMEOUT_MIN 4
 #define DT2W_DELTA 150
+
+static struct wake_lock d2w_wakelock;
+
+int wake_timeout = 60;
 
 void sweep2wake_setdev(struct input_dev * input_device) {
 	sweep2wake_pwrdev = input_device;
@@ -738,6 +742,29 @@ static ssize_t elan_ktf3k_doubletap2wake_dump(struct device *dev, struct device_
 static DEVICE_ATTR(doubletap2wake, (S_IWUSR|S_IRUGO),
 	elan_ktf3k_doubletap2wake_show, elan_ktf3k_doubletap2wake_dump); 
 
+static ssize_t elan_ktf3k_wake_timeout_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+	count += sprintf(buf, "%d\n", wake_timeout);
+	return count;
+}
+
+static ssize_t elan_ktf3k_wake_timeout_dump(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+
+	wake_timeout = input;
+
+	return count;
+}
+
+static DEVICE_ATTR(wake_timeout, (S_IWUSR|S_IRUGO),
+	elan_ktf3k_wake_timeout_show, elan_ktf3k_wake_timeout_dump); 
+
 /* end sweep2wake sysfs*/
 
 
@@ -821,6 +848,7 @@ static struct attribute *elan_attr[] = {
 /* sweep2wake sysfs */
 	&dev_attr_sweep2wake.attr,
 	&dev_attr_doubletap2wake.attr,
+	&dev_attr_wake_timeout.attr,
 	NULL
 };
 
@@ -864,6 +892,11 @@ static int elan_ktf3k_touch_sysfs_init(void)
 		touch_debug(DEBUG_ERROR, "[elan]%s: sysfs_create_group failed\n", __func__);
 		return ret;
 	}
+	ret = sysfs_create_file(android_touch_kobj, &dev_attr_wake_timeout.attr);
+	if (ret) {
+		touch_debug(DEBUG_ERROR, "[elan]%s: sysfs_create_group failed\n", __func__);
+		return ret;
+	}
 	return 0 ;
 }
 
@@ -875,6 +908,7 @@ static void elan_touch_sysfs_deinit(void)
 	sysfs_remove_file(android_touch_kobj, &dev_attr_sweep2wake.attr);
 	sysfs_remove_file(android_touch_kobj, &dev_attr_doubletap2wake.attr);
 	sysfs_remove_file(android_touch_kobj, &dev_attr_shortsweep.attr);
+	sysfs_remove_file(android_touch_kobj, &dev_attr_wake_timeout.attr);
 	kobject_del(android_touch_kobj);
 }
 
@@ -1935,6 +1969,7 @@ static int elan_ktf3k_ts_probe(struct i2c_client *client,
 	
 	ts->status = 1; // set I2C status is OK;
 	wake_lock_init(&ts->wakelock, WAKE_LOCK_SUSPEND, "elan_touch");
+	wake_lock_init(&d2w_wakelock, WAKE_LOCK_SUSPEND, "d2w_wakelock");
 	if(err==0x80)
 	    touch_debug(DEBUG_INFO, "[ELAN] Touch is in boot mode!\n");
 
@@ -2085,6 +2120,7 @@ static int elan_ktf3k_ts_remove(struct i2c_client *client)
 		destroy_workqueue(ts->elan_wq);
 	input_unregister_device(ts->input_dev);
 	wake_lock_destroy(&ts->wakelock);
+	wake_lock_destroy(&d2w_wakelock);
 #ifdef TOUCH_STRESS_TEST
 	misc_deregister(&ts->misc_dev);
 #endif
@@ -2133,7 +2169,11 @@ static int elan_ktf3k_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	    rc = elan_ktf3k_ts_set_power_state(client, PWR_STATE_DEEP_SLEEP);
 /*s2w*/
 	scr_suspended = true;
-
+	if (wake_timeout == 0) {
+		wake_lock(&d2w_wakelock);
+	} else {
+		wake_lock_timeout(&d2w_wakelock, 100 * wake_timeout);
+	}
 	return 0;
 }
 
@@ -2173,6 +2213,9 @@ static int elan_ktf3k_ts_resume(struct i2c_client *client)
 		dt2w_switch = dt2w_switch_temp;
 
 	scr_suspended = false;
+
+	if (wake_lock_active(&d2w_wakelock))
+		wake_unlock(&d2w_wakelock);
 /* end s2w */
 
 	return 0;
