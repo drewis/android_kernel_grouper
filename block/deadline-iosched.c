@@ -17,11 +17,12 @@
 /*
  * See Documentation/block/deadline-iosched.txt
  */
-static const int read_expire = 250;  /* max time before a read is submitted. */
-static const int write_expire = 2500; /* ditto for writes, these limits are SOFT! */
-static const int writes_starved = 2;    /* max times reads can starve a write */
+static const int read_expire = 25;  /* max time before a read is submitted. */
+static const int write_expire = 250; /* ditto for writes, these limits are SOFT! */
+static const int writes_starved = 1;    /* max times reads can starve a write */
 static const int fifo_batch = 8;       /* # of sequential requests treated as one
-				     by the above parameters. For throughput. */
+				     				by the above parameters. For throughput. */
+static const int front_merges = 1;
 
 struct deadline_data {
 	/*
@@ -352,7 +353,7 @@ static void *deadline_init_queue(struct request_queue *q)
 	dd->fifo_expire[READ] = read_expire;
 	dd->fifo_expire[WRITE] = write_expire;
 	dd->writes_starved = writes_starved;
-	dd->front_merges = 1;
+	dd->front_merges = front_merges;
 	dd->fifo_batch = fifo_batch;
 	return dd;
 }
@@ -385,8 +386,8 @@ static ssize_t __FUNC(struct elevator_queue *e, char *page)		\
 		__data = jiffies_to_msecs(__data);			\
 	return deadline_var_show(__data, (page));			\
 }
-SHOW_FUNCTION(deadline_read_expire_show, dd->fifo_expire[READ], 0);
-SHOW_FUNCTION(deadline_write_expire_show, dd->fifo_expire[WRITE], 0);
+SHOW_FUNCTION(deadline_read_expire_show, dd->fifo_expire[READ], 1);
+SHOW_FUNCTION(deadline_write_expire_show, dd->fifo_expire[WRITE], 1);
 SHOW_FUNCTION(deadline_writes_starved_show, dd->writes_starved, 0);
 SHOW_FUNCTION(deadline_front_merges_show, dd->front_merges, 0);
 SHOW_FUNCTION(deadline_fifo_batch_show, dd->fifo_batch, 0);
@@ -408,8 +409,8 @@ static ssize_t __FUNC(struct elevator_queue *e, const char *page, size_t count)	
 		*(__PTR) = __data;					\
 	return ret;							\
 }
-STORE_FUNCTION(deadline_read_expire_store, &dd->fifo_expire[READ], 0, INT_MAX, 0);
-STORE_FUNCTION(deadline_write_expire_store, &dd->fifo_expire[WRITE], 0, INT_MAX, 0);
+STORE_FUNCTION(deadline_read_expire_store, &dd->fifo_expire[READ], 0, INT_MAX, 1);
+STORE_FUNCTION(deadline_write_expire_store, &dd->fifo_expire[WRITE], 0, INT_MAX, 1);
 STORE_FUNCTION(deadline_writes_starved_store, &dd->writes_starved, INT_MIN, INT_MAX, 0);
 STORE_FUNCTION(deadline_front_merges_store, &dd->front_merges, 0, 1, 0);
 STORE_FUNCTION(deadline_fifo_batch_store, &dd->fifo_batch, 0, INT_MAX, 0);
@@ -464,3 +465,4 @@ module_exit(deadline_exit);
 MODULE_AUTHOR("Jens Axboe");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("deadline IO scheduler");
+
