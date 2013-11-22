@@ -96,8 +96,10 @@ static const int bfq_max_budget_async_rq = 4;
 static const int bfq_async_charge_factor = 10;
 
 /* Default timeout values, in jiffies, approximating CFQ defaults. */
-static const int bfq_timeout_sync = HZ / 8;
-static int bfq_timeout_async = HZ / 25;
+//static const int bfq_timeout_sync = HZ / 8;
+static const int bfq_timeout_sync = 7;
+//static int bfq_timeout_async = HZ / 25;
+static int bfq_timeout_async = 5;
 
 struct kmem_cache *bfq_pool;
 struct kmem_cache *bfq_ioc_pool;
@@ -3332,11 +3334,12 @@ static int __init bfq_init(void)
 	/*
 	 * Can be 0 on HZ < 1000 setups.
 	 */
-	if (bfq_slice_idle == 0)
-		bfq_slice_idle = 1;
+	//if (bfq_slice_idle == 0)
+	//	bfq_slice_idle = 1;
+	bfq_slice_idle = 0;
 
-	if (bfq_timeout_async == 0)
-		bfq_timeout_async = 1;
+	//if (bfq_timeout_async == 0)
+	//	bfq_timeout_async = 1;
 
 	if (bfq_slab_setup())
 		return -ENOMEM;
