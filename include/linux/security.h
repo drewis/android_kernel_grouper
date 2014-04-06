@@ -36,7 +36,6 @@
 #include <linux/key.h>
 #include <linux/xfrm.h>
 #include <linux/slab.h>
-#include <linux/xattr.h>
 #include <net/flow.h>
 
 /* Maximum number of letters for an LSM name string */
@@ -147,10 +146,6 @@ static inline unsigned long round_hint_to_min(unsigned long hint)
 extern int mmap_min_addr_handler(struct ctl_table *table, int write,
 				 void __user *buffer, size_t *lenp, loff_t *ppos);
 #endif
-
-/* security_inode_init_security callback function to write xattrs */
-typedef int (*initxattrs) (struct inode *inode,
-			   const struct xattr *xattr_array, void *fs_data);
 
 #ifdef CONFIG_SECURITY
 
@@ -1720,9 +1715,6 @@ void security_inode_free(struct inode *inode);
 int security_inode_init_security(struct inode *inode, struct inode *dir,
 				 const struct qstr *qstr, char **name,
 				 void **value, size_t *len);
-int security_new_inode_init_security(struct inode *inode, struct inode *dir,
-				 const struct qstr *qstr,
-				 initxattrs initxattrs, void *fs_data);
 int security_inode_create(struct inode *dir, struct dentry *dentry, int mode);
 int security_inode_link(struct dentry *old_dentry, struct inode *dir,
 			 struct dentry *new_dentry);
@@ -2075,16 +2067,7 @@ static inline int security_inode_init_security(struct inode *inode,
 						void **value,
 						size_t *len)
 {
-	return 0;
-}
-
-static inline int security_new_inode_init_security(struct inode *inode,
-						struct inode *dir,
-						const struct qstr *qstr,
-						initxattrs initxattrs,
-						void *fs_data)
-{
-	return 0;
+	return -EOPNOTSUPP;
 }
 
 static inline int security_inode_create(struct inode *dir,
