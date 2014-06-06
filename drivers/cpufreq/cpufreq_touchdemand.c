@@ -375,7 +375,7 @@ static ssize_t store_touch_factor(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-static unsigned int Touch_poke_attr[4] = {1200000, 1200000, 0, 0};
+static unsigned int Touch_poke_attr[4] = {1300000, 1200000, 1000000, 0};
 static unsigned int Touch_poke_boost = 1;
 static unsigned long Touch_poke_boost_till_jiffies = 0;
 
