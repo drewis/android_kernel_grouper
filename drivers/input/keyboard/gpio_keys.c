@@ -32,7 +32,6 @@
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/spinlock.h>
-#include <linux/sweep2wake.h>
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -749,9 +748,6 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 	}
 	input_sync(input);
 
-	sweep2wake_setdev(input);
-	printk(KERN_INFO "[sweep2wake]: set device %s\n", input->name);
-
 	device_init_wakeup(&pdev->dev, wakeup);
 
 	return 0;
@@ -889,3 +885,4 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Phil Blundell <pb@handhelds.org>");
 MODULE_DESCRIPTION("Keyboard driver for GPIOs");
 MODULE_ALIAS("platform:gpio-keys");
+
